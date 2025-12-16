@@ -422,6 +422,25 @@ struct UISettingsTab: View {
                 GroupBox("Thanh trạng thái") {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Hiển thị biểu tượng trên thanh trạng thái", isOn: $viewModel.preferences.showStatusBarIcon)
+                        
+                        Divider()
+                            .padding(.vertical, 4)
+                        
+                        Text("Biểu tượng menubar:")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 12) {
+                            ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                                RadioButton(
+                                    title: style.displayName,
+                                    isSelected: viewModel.preferences.menuBarIconStyle == style
+                                ) {
+                                    viewModel.preferences.menuBarIconStyle = style
+                                }
+                            }
+                        }
+                        .padding(.leading, 8)
                     }
                     .padding(.vertical, 4)
                 }

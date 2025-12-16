@@ -103,6 +103,10 @@ struct HotkeyRecorderView: View {
     }
     
     private func clearHotkey() {
+        // Stop recording first if active
+        if isRecording {
+            stopRecording()
+        }
         hotkey = Hotkey(keyCode: 0, modifiers: [])
         updateDisplay()
     }

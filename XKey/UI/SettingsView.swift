@@ -279,7 +279,28 @@ struct AppearanceSettingsSection: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 SettingsGroup(title: "Thanh trạng thái") {
-                    Toggle("Hiển thị biểu tượng trên thanh trạng thái", isOn: $viewModel.preferences.showStatusBarIcon)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Toggle("Hiển thị biểu tượng trên thanh trạng thái", isOn: $viewModel.preferences.showStatusBarIcon)
+                        
+                        Divider()
+                            .padding(.vertical, 4)
+                        
+                        Text("Biểu tượng menubar:")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 12) {
+                            ForEach(MenuBarIconStyle.allCases, id: \.self) { style in
+                                SettingsRadioButton(
+                                    title: style.displayName,
+                                    isSelected: viewModel.preferences.menuBarIconStyle == style
+                                ) {
+                                    viewModel.preferences.menuBarIconStyle = style
+                                }
+                            }
+                        }
+                        .padding(.leading, 8)
+                    }
                 }
                 
                 SettingsGroup(title: "Khởi động") {

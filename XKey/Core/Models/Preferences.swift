@@ -8,6 +8,18 @@
 import Foundation
 import Cocoa
 
+enum MenuBarIconStyle: String, Codable, CaseIterable {
+    case x = "X"
+    case v = "V"
+    
+    var displayName: String {
+        switch self {
+        case .x: return "Chữ X"
+        case .v: return "Chữ V"
+        }
+    }
+}
+
 struct Preferences: Codable {
     // Hotkey settings
     var toggleHotkey: Hotkey = Hotkey(keyCode: 9, modifiers: [.command, .shift]) // Default: Cmd+Shift+V
@@ -44,6 +56,7 @@ struct Preferences: Codable {
     // UI settings
     var showStatusBarIcon: Bool = true
     var startAtLogin: Bool = false
+    var menuBarIconStyle: MenuBarIconStyle = .x  // Icon style for menubar
 }
 
 struct Hotkey: Codable, Equatable {

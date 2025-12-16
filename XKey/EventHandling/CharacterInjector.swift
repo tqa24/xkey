@@ -56,33 +56,41 @@ class CharacterInjector {
 
     /// Send backspace key presses with optional autocomplete fix
     func sendBackspaces(count: Int, codeTable: CodeTable, proxy: CGEventTapProxy, fixAutocomplete: Bool = false) {
-        // For Chrome: handle duplicate first character issue
-        // Only the first character gets duplicated (Chrome receives both original and injected)
-        // Subsequent characters work normally
-        // Chrome fix: Disabled for now due to conflicts between address bar and text fields
-        // Address bar and text fields behave differently, making it hard to fix both
-        // Users should disable Vietnamese input when typing in Chrome address bar
-        // or use the search box instead
-        if fixAutocomplete && isChromiumBrowser() {
-            // Just send normal backspaces
-            for _ in 0..<count {
-                sendBackspace(codeTable: codeTable, proxy: proxy)
-            }
-            return
-        }
-        
         guard count > 0 else { return }
         
+        debugCallback?("sendBackspaces: count=\(count), fixAutocomplete=\(fixAutocomplete)")
+        
         if fixAutocomplete {
-            // For other apps, send empty character first, then increase backspace count
-            sendEmptyCharacter(proxy: proxy)
-            for _ in 0..<(count + 1) {
+            // Universal autocomplete fix approach:
+            // Problem: Apps like Spotlight, Chrome address bar auto-select suggestion text after cursor
+            // When we send backspace, it deletes the selection (suggestion) first, not our typed text
+            // 
+            // Solution: Send Delete (forward delete) to clear the suggestion first,
+            // then send backspaces to delete our typed characters
+            //
+            // This works for: Spotlight, Chrome/Edge/Brave address bar, Safari address bar, etc.
+            debugCallback?("    → Autocomplete fix: sending Forward Delete to clear suggestion")
+            sendForwardDelete(proxy: proxy)
+            usleep(3000) // 3ms delay after Forward Delete
+            
+            // Send backspaces
+            for i in 0..<count {
                 sendBackspace(codeTable: codeTable, proxy: proxy)
+                debugCallback?("    → Backspace \(i + 1)/\(count)")
             }
+            
+            // Add delay after backspaces before character injection
+            usleep(3000) // 3ms delay
         } else {
             // Normal backspace without autocomplete fix
+            debugCallback?("    → Normal backspaces (no fix)")
             for _ in 0..<count {
                 sendBackspace(codeTable: codeTable, proxy: proxy)
+            }
+            
+            // Add delay after all backspaces
+            if count > 0 {
+                usleep(2000) // 2ms delay after backspaces
             }
         }
     }
@@ -187,6 +195,8 @@ class CharacterInjector {
 
         for _ in 0..<backspaceCount {
             sendKeyPress(deleteKeyCode, proxy: proxy)
+            // Add small delay for apps like Spotlight that need time to process backspace
+            usleep(1000) // 1ms delay between backspaces
         }
     }
 
@@ -229,6 +239,58 @@ class CharacterInjector {
     }
 
     // MARK: - Autocomplete Fix Methods
+    
+    /// Send Right Arrow key to move cursor to end (deselect autocomplete in Spotlight)
+    private func sendRightArrow(proxy: CGEventTapProxy) {
+        guard let source = eventSource else { return }
+        
+        let rightArrowKeyCode: CGKeyCode = 0x7C  // Right Arrow key
+        
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: rightArrowKeyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: rightArrowKeyCode, keyDown: false) else {
+            return
+        }
+        
+        keyDown.tapPostEvent(proxy)
+        keyUp.tapPostEvent(proxy)
+        
+        debugCallback?("    → Sent Right Arrow to deselect autocomplete")
+    }
+    
+    /// Send Forward Delete (Fn+Delete) to delete text after cursor (clear autocomplete suggestion)
+    private func sendForwardDelete(proxy: CGEventTapProxy) {
+        guard let source = eventSource else { return }
+        
+        // Forward Delete key code is 0x75 (117)
+        let forwardDeleteKeyCode: CGKeyCode = 0x75
+        
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: forwardDeleteKeyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: forwardDeleteKeyCode, keyDown: false) else {
+            return
+        }
+        
+        keyDown.tapPostEvent(proxy)
+        keyUp.tapPostEvent(proxy)
+        
+        debugCallback?("    → Sent Forward Delete to clear autocomplete suggestion")
+    }
+    
+    /// Send Escape key to dismiss autocomplete suggestions (for Spotlight)
+    private func sendEscapeKey(proxy: CGEventTapProxy) {
+        guard let source = eventSource else { return }
+        
+        let escapeKeyCode: CGKeyCode = 0x35  // Escape key
+        
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: escapeKeyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: escapeKeyCode, keyDown: false) else {
+            return
+        }
+        
+        keyDown.tapPostEvent(proxy)
+        keyUp.tapPostEvent(proxy)
+        
+        debugCallback?("    → Sent Escape key to dismiss autocomplete")
+    }
 
     /// Send empty character to fix autocomplete (U+202F - Narrow No-Break Space)
     private func sendEmptyCharacter(proxy: CGEventTapProxy) {
@@ -283,6 +345,68 @@ class CharacterInjector {
         ]
 
         return chromiumBrowsers.contains(frontApp.bundleIdentifier ?? "")
+    }
+    
+    /// Check if current focused element is in Spotlight
+    private func isSpotlight() -> Bool {
+        // Method 1: Check frontmost app (works for some cases)
+        // Method 1: Check frontmost app
+        if let frontApp = NSWorkspace.shared.frontmostApplication {
+            let bundleId = frontApp.bundleIdentifier ?? "unknown"
+            debugCallback?("    → isSpotlight: frontmostApp = \(bundleId)")
+            if bundleId == "com.apple.Spotlight" {
+                debugCallback?("    → isSpotlight: Detected via frontmostApplication")
+                return true
+            }
+        }
+        
+        // Method 2: Check if Spotlight process is active and has a window
+        // Spotlight runs as a separate process when opened with Cmd+Space
+        let runningApps = NSWorkspace.shared.runningApplications
+        for app in runningApps {
+            if app.bundleIdentifier == "com.apple.Spotlight" && app.isActive {
+                debugCallback?("    → isSpotlight: Detected active Spotlight process")
+                return true
+            }
+        }
+        
+        // Method 3: Check menu bar ownership - Spotlight takes over menu bar when active
+        // When Spotlight is open, the menu bar shows "Spotlight" in the app menu
+        if let menuBarOwner = NSWorkspace.shared.menuBarOwningApplication {
+            let bundleId = menuBarOwner.bundleIdentifier ?? "unknown"
+            debugCallback?("    → isSpotlight: menuBarOwner = \(bundleId)")
+            if bundleId == "com.apple.Spotlight" {
+                debugCallback?("    → isSpotlight: Detected via menuBarOwningApplication")
+                return true
+            }
+        }
+        
+        // Method 4: Use Accessibility API to check focused element's app
+        let systemWideElement = AXUIElementCreateSystemWide()
+        
+        var focusedElement: CFTypeRef?
+        if AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success {
+            let element = focusedElement as! AXUIElement
+            
+            // Get the process ID of the focused element
+            var pid: pid_t = 0
+            if AXUIElementGetPid(element, &pid) == .success {
+                if let app = NSRunningApplication(processIdentifier: pid) {
+                    let bundleId = app.bundleIdentifier ?? "unknown"
+                    let appName = app.localizedName ?? "unknown"
+                    debugCallback?("    → isSpotlight: Focused element app = \(appName) (\(bundleId))")
+                    
+                    if bundleId == "com.apple.Spotlight" {
+                        return true
+                    }
+                }
+            }
+        } else {
+            debugCallback?("    → isSpotlight: Failed to get focused element (AX API)")
+        }
+        
+        debugCallback?("    → isSpotlight: Not Spotlight")
+        return false
     }
     
     /// Check if currently focused element is Chrome address bar

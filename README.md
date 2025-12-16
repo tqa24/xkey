@@ -43,7 +43,7 @@ Các bộ gõ tiếng Việt hiện tại trên macOS đang gặp một số v�
 
 ### 1. Hỗ trợ đa kiểu gõ
 
-- **Telex** (VNI): Kiểu gõ phổ biến nhất (ví dụ: `tiếng` → tiếng)
+- **Telex**: Kiểu gõ phổ biến nhất (ví dụ: `tiếng` → tiếng)
 - **VNI**: Kiểu gõ truyền thống (ví dụ: `tie61ng` → tiếng)
 - **VIQR**: Kiểu gõ chuẩn quốc tế (ví dụ: `tie^'ng` → tiếng)
 
@@ -132,6 +132,8 @@ Bật Debug Window trong **Cài đặt** → **Nâng cao** → **Bật chế đ�
 ### 8. Giao diện & Trải nghiệm
 
 - Biểu tượng trên thanh trạng thái (Menu Bar)
+  - Chọn giữa chữ **X** hoặc chữ **V** làm biểu tượng
+  - Tự động đổi màu khi bật/tắt tiếng Việt
 - Phím tắt tùy chỉnh để bật/tắt tiếng Việt
 - Khởi động cùng hệ thống
 - Kiểm tra cập nhật tự động
@@ -248,6 +250,7 @@ Chúng tôi hoan nghênh mọi đóng góp! Vui lòng:
 - 🧠 Smart Switch
 - 🛠️ Công cụ chuyển đổi văn bản
 - 🎨 Giao diện hiện đại theo phong cách macOS
+- 🎨 Tùy chọn biểu tượng menubar (chữ X hoặc chữ V)
 
 ---
 

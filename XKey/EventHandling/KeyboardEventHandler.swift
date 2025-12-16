@@ -112,11 +112,9 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             #endif
         }
         
-        // Set up injector debug logging
+        // Set up injector debug logging (works in both Debug and Release)
         self.injector.debugCallback = { [weak self] message in
-            #if DEBUG
             self?.debugLogCallback?("💉 Injector: \(message)")
-            #endif
         }
         
         // Share managers with VNEngine

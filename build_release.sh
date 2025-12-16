@@ -43,7 +43,7 @@ echo "🧹 Cleaning previous build..."
 xcodebuild -project XKey.xcodeproj -scheme XKey -configuration Release -derivedDataPath ./build clean
 
 # Build with or without code signing
-echo "🔨 Building Release..."
+echo "🔨 Building Universal Binary (Intel + Apple Silicon)..."
 
 if [ "$ENABLE_CODESIGN" = true ]; then
     echo "🔐 Code signing enabled with: $DEVELOPER_ID"
@@ -51,6 +51,8 @@ if [ "$ENABLE_CODESIGN" = true ]; then
       -scheme XKey \
       -configuration Release \
       -derivedDataPath ./build \
+      -arch x86_64 -arch arm64 \
+      ONLY_ACTIVE_ARCH=NO \
       PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
       CODE_SIGN_STYLE=Manual \
       CODE_SIGN_IDENTITY="$DEVELOPER_ID" \
@@ -65,6 +67,8 @@ else
       -scheme XKey \
       -configuration Release \
       -derivedDataPath ./build \
+      -arch x86_64 -arch arm64 \
+      ONLY_ACTIVE_ARCH=NO \
       PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
       CODE_SIGN_STYLE=Manual \
       CODE_SIGN_IDENTITY="-" \
@@ -106,7 +110,7 @@ fi
 # Clear macOS launch services cache
 echo ""
 echo "🧹 Clearing macOS cache..."
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -kill -r -domain local -domain system -domain user
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -r -domain local -domain system -domain user
 
 echo ""
 echo "✅ Build successful!"
@@ -117,6 +121,9 @@ echo "   $(pwd)/Release/XKey.app"
 echo ""
 echo "📊 App size:"
 du -sh Release/XKey.app
+echo ""
+echo "🏗️  Architecture:"
+lipo -info Release/XKey.app/Contents/MacOS/XKey
 echo ""
 
 if [ "$ENABLE_CODESIGN" = true ]; then

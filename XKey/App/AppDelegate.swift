@@ -334,6 +334,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Update hotkey display in menu
         statusBarManager?.updateHotkeyDisplay(preferences.toggleHotkey)
         
+        // Update menu bar icon style
+        statusBarManager?.updateMenuBarIconStyle(preferences.menuBarIconStyle)
+        
         // Update hotkey
         setupGlobalHotkey(with: preferences.toggleHotkey)
         

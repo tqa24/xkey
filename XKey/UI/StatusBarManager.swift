@@ -12,6 +12,7 @@ import Combine
 class StatusBarManager: ObservableObject {
     private var statusItem: NSStatusItem?
     let viewModel: StatusBarViewModel
+    private var menuBarIconStyle: MenuBarIconStyle = .x
     #if DEBUG
     weak var debugWindowController: DebugWindowController?
     #endif
@@ -21,6 +22,8 @@ class StatusBarManager: ObservableObject {
             keyboardHandler: keyboardHandler,
             eventTapManager: eventTapManager
         )
+        // Load icon style from preferences
+        self.menuBarIconStyle = PreferencesManager.shared.loadPreferences().menuBarIconStyle
     }
     
     private func log(_ message: String) {
@@ -315,14 +318,21 @@ class StatusBarManager: ObservableObject {
     private func updateStatusIcon() {
         guard let button = statusItem?.button else { return }
         
-        let iconText = viewModel.isVietnameseEnabled ? "X" : "E"
+        // Determine icon text based on icon style and Vietnamese mode
+        let iconText: String
+        switch menuBarIconStyle {
+        case .x:
+            iconText = viewModel.isVietnameseEnabled ? "X" : "E"
+        case .v:
+            iconText = viewModel.isVietnameseEnabled ? "V" : "E"
+        }
         
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
             .foregroundColor: NSColor.labelColor
         ]
         
-        let size = NSSize(width: 17, height: 17)
+        let size = NSSize(width: 20, height: 20)
         let image = NSImage(size: size, flipped: false) { rect in
             // Vẽ viền trắng bao quanh
             let borderRect = NSRect(x: 1.5, y: 1.5, width: size.width - 3, height: size.height - 3)
@@ -349,6 +359,12 @@ class StatusBarManager: ObservableObject {
     
     func updateHotkeyDisplay(_ hotkey: Hotkey) {
         viewModel.updateHotkeyDisplay(hotkey)
+    }
+    
+    func updateMenuBarIconStyle(_ style: MenuBarIconStyle) {
+        menuBarIconStyle = style
+        updateStatusIcon()
+        log("🎨 Menu bar icon style updated to: \(style.rawValue)")
     }
     
     private func rebuildMenu() {
