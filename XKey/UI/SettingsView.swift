@@ -341,12 +341,19 @@ struct AdvancedSettingsSection: View {
                                     // Use custom binding for optional hotkey
                                     HotkeyRecorderView(hotkey: Binding(
                                         get: { viewModel.preferences.switchToXKeyHotkey ?? Hotkey(keyCode: 0, modifiers: []) },
-                                        set: { viewModel.preferences.switchToXKeyHotkey = $0 }
+                                        set: { newValue in
+                                            // Set to nil if empty, otherwise save the hotkey
+                                            if newValue.keyCode == 0 && newValue.modifiers.isEmpty {
+                                                viewModel.preferences.switchToXKeyHotkey = nil
+                                            } else {
+                                                viewModel.preferences.switchToXKeyHotkey = newValue
+                                            }
+                                        }
                                     ))
                                         .frame(width: 150)
                                 }
                                 
-                                Text("Nhấn phím tắt này để chuyển nhanh sang XKey Input Method từ bất kỳ nguồn nhập nào")
+                                Text("Phím tắt này sẽ toggle giữa XKey và ABC (nếu đang dùng XKey → ABC, ngược lại → XKey)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                 

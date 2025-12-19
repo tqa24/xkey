@@ -53,6 +53,9 @@ enum SharedSettingsKey: String {
     // IMKit settings
     case imkitEnabled = "XKey.imkitEnabled"
     case imkitUseMarkedText = "XKey.imkitUseMarkedText"
+    case switchToXKeyHotkeyCode = "XKey.switchToXKeyHotkeyCode"
+    case switchToXKeyHotkeyModifiers = "XKey.switchToXKeyHotkeyModifiers"
+    case switchToXKeyHotkeyIsModifierOnly = "XKey.switchToXKeyHotkeyIsModifierOnly"
 
     // UI settings
     case showDockIcon = "XKey.showDockIcon"
@@ -166,6 +169,9 @@ class SharedSettings {
             SharedSettingsKey.debugModeEnabled.rawValue,
             SharedSettingsKey.imkitEnabled.rawValue,
             SharedSettingsKey.imkitUseMarkedText.rawValue,
+            SharedSettingsKey.switchToXKeyHotkeyCode.rawValue,
+            SharedSettingsKey.switchToXKeyHotkeyModifiers.rawValue,
+            SharedSettingsKey.switchToXKeyHotkeyIsModifierOnly.rawValue,
             SharedSettingsKey.showDockIcon.rawValue,
             SharedSettingsKey.startAtLogin.rawValue,
             SharedSettingsKey.menuBarIconStyle.rawValue,
@@ -366,13 +372,28 @@ class SharedSettings {
         get { defaults.bool(forKey: SharedSettingsKey.imkitUseMarkedText.rawValue) }
         set {
             defaults.set(newValue, forKey: SharedSettingsKey.imkitUseMarkedText.rawValue)
-            
+
             // CRITICAL: Also write directly to plist file to bypass cfprefsd caching
             // This ensures XKeyIM will read the latest value
             writeDirectlyToPlist(key: SharedSettingsKey.imkitUseMarkedText.rawValue, value: newValue)
-            
+
             notifySettingsChanged()
         }
+    }
+
+    var switchToXKeyHotkeyCode: UInt16 {
+        get { UInt16(defaults.integer(forKey: SharedSettingsKey.switchToXKeyHotkeyCode.rawValue)) }
+        set { defaults.set(Int(newValue), forKey: SharedSettingsKey.switchToXKeyHotkeyCode.rawValue) }
+    }
+
+    var switchToXKeyHotkeyModifiers: UInt {
+        get { UInt(defaults.integer(forKey: SharedSettingsKey.switchToXKeyHotkeyModifiers.rawValue)) }
+        set { defaults.set(Int(newValue), forKey: SharedSettingsKey.switchToXKeyHotkeyModifiers.rawValue) }
+    }
+
+    var switchToXKeyHotkeyIsModifierOnly: Bool {
+        get { defaults.bool(forKey: SharedSettingsKey.switchToXKeyHotkeyIsModifierOnly.rawValue) }
+        set { defaults.set(newValue, forKey: SharedSettingsKey.switchToXKeyHotkeyIsModifierOnly.rawValue) }
     }
 
     // MARK: - UI Settings
@@ -549,6 +570,17 @@ class SharedSettings {
         prefs.imkitEnabled = imkitEnabled
         prefs.imkitUseMarkedText = imkitUseMarkedText
 
+        // Switch to XKey hotkey (optional)
+        let switchHotkeyCode = switchToXKeyHotkeyCode
+        let switchHotkeyModifiers = switchToXKeyHotkeyModifiers
+        if switchHotkeyCode != 0 || switchHotkeyModifiers != 0 {
+            prefs.switchToXKeyHotkey = Hotkey(
+                keyCode: switchHotkeyCode,
+                modifiers: ModifierFlags(rawValue: switchHotkeyModifiers),
+                isModifierOnly: switchToXKeyHotkeyIsModifierOnly
+            )
+        }
+
         // UI settings
         prefs.showDockIcon = showDockIcon
         prefs.startAtLogin = startAtLogin
@@ -606,6 +638,18 @@ class SharedSettings {
         // IMKit
         imkitEnabled = prefs.imkitEnabled
         imkitUseMarkedText = prefs.imkitUseMarkedText
+
+        // Switch to XKey hotkey (optional)
+        if let switchHotkey = prefs.switchToXKeyHotkey {
+            switchToXKeyHotkeyCode = switchHotkey.keyCode
+            switchToXKeyHotkeyModifiers = switchHotkey.modifiers.rawValue
+            switchToXKeyHotkeyIsModifierOnly = switchHotkey.isModifierOnly
+        } else {
+            // Clear the hotkey if nil
+            switchToXKeyHotkeyCode = 0
+            switchToXKeyHotkeyModifiers = 0
+            switchToXKeyHotkeyIsModifierOnly = false
+        }
 
         // UI settings
         showDockIcon = prefs.showDockIcon

@@ -14,9 +14,41 @@ class InputSourceSwitcher {
     
     /// XKeyIM bundle identifier
     static let xkeyIMBundleId = "com.codetay.inputmethod.XKey"
-    
+
+    /// ABC (US English) input source bundle identifier
+    static let abcBundleId = "com.apple.keylayout.ABC"
+
     // MARK: - Switch Input Source
-    
+
+    /// Toggle between XKey and ABC input sources
+    /// - If currently using XKey → switch to ABC (or first non-XKey source)
+    /// - If currently using other source → switch to XKey
+    /// - Returns: true if successfully switched, false otherwise
+    @discardableResult
+    func toggleXKey() -> Bool {
+        let currentId = getCurrentInputSourceId()
+        let isUsingXKey = (currentId == Self.xkeyIMBundleId)
+
+        if isUsingXKey {
+            // Currently using XKey → switch to ABC or fallback to first non-XKey source
+            // Try ABC first
+            if selectInputSource(bundleId: Self.abcBundleId) {
+                return true
+            }
+
+            // ABC not available, find first non-XKey input source
+            let sources = getEnabledInputSources()
+            if let firstNonXKey = sources.first(where: { $0.bundleId != Self.xkeyIMBundleId }) {
+                return selectInputSource(bundleId: firstNonXKey.bundleId)
+            }
+
+            return false
+        } else {
+            // Currently using other source → switch to XKey
+            return selectInputSource(bundleId: Self.xkeyIMBundleId)
+        }
+    }
+
     /// Switch to XKeyIM input method
     /// - Returns: true if successfully switched, false otherwise
     @discardableResult
@@ -28,27 +60,19 @@ class InputSourceSwitcher {
     /// - Parameter bundleId: The bundle identifier of the input source
     /// - Returns: true if successfully switched, false otherwise
     func selectInputSource(bundleId: String) -> Bool {
-        // Create filter for the specific bundle ID
         let filter: [String: Any] = [
             kTISPropertyBundleID as String: bundleId
         ]
-        
+
         guard let sourceList = TISCreateInputSourceList(filter as CFDictionary, false)?.takeRetainedValue() as? [TISInputSource],
               let source = sourceList.first else {
-            NSLog("InputSourceSwitcher: Input source '\(bundleId)' not found")
             return false
         }
-        
+
         let result = TISSelectInputSource(source)
-        if result == noErr {
-            NSLog("InputSourceSwitcher: Switched to '\(bundleId)'")
-            return true
-        } else {
-            NSLog("InputSourceSwitcher: Failed to switch to '\(bundleId)', error: \(result)")
-            return false
-        }
+        return result == noErr
     }
-    
+
     /// Get currently selected input source bundle ID
     func getCurrentInputSourceId() -> String? {
         guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {

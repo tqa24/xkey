@@ -598,18 +598,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         switchXKeyGlobalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == keyCode && checkModifiers(event) {
                 DispatchQueue.main.async {
-                    let success = InputSourceSwitcher.shared.switchToXKey()
-                    self?.debugWindowController?.logEvent("🔄 Switch to XKey via hotkey (\(hotkey.displayString)): \(success ? "success" : "failed")")
+                    // Check state BEFORE toggle
+                    let wasXKey = InputSourceSwitcher.shared.isXKeyActive
+                    let action = wasXKey ? "XKey → ABC" : "ABC → XKey"
+
+                    // Perform toggle
+                    let success = InputSourceSwitcher.shared.toggleXKey()
+                    self?.debugWindowController?.logEvent("🔄 Toggle input source via hotkey (\(hotkey.displayString)) [\(action)]: \(success ? "success" : "failed")")
                 }
             }
         }
-        
+
         // Local monitor - catches hotkey when XKey app is focused
         switchXKeyHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             if event.keyCode == keyCode && checkModifiers(event) {
                 DispatchQueue.main.async {
-                    let success = InputSourceSwitcher.shared.switchToXKey()
-                    self?.debugWindowController?.logEvent("🔄 Switch to XKey via hotkey (\(hotkey.displayString)): \(success ? "success" : "failed")")
+                    // Check state BEFORE toggle
+                    let wasXKey = InputSourceSwitcher.shared.isXKeyActive
+                    let action = wasXKey ? "XKey → ABC" : "ABC → XKey"
+
+                    // Perform toggle
+                    let success = InputSourceSwitcher.shared.toggleXKey()
+                    self?.debugWindowController?.logEvent("🔄 Toggle input source via hotkey (\(hotkey.displayString)) [\(action)]: \(success ? "success" : "failed")")
                 }
                 // Return nil to consume the event
                 return nil

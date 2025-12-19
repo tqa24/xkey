@@ -46,6 +46,13 @@ class DebugViewModel: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            // Try to get message from object first (for InputSourceSwitcher)
+            if let message = notification.object as? String {
+                self?.logEvent(message)
+                return
+            }
+
+            // Fallback to userInfo for XKeyIM messages with source
             guard let userInfo = notification.userInfo,
                   let message = userInfo["message"] as? String,
                   let source = userInfo["source"] as? String else {
