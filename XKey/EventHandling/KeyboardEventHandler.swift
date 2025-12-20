@@ -359,30 +359,40 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return event  // Pass through
         }
 
-        // IMPORTANT: Convert physical keyCode to QWERTY character
-        // This ensures Vietnamese typing works on non-QWERTY layouts (QWERTZ, AZERTY, etc.)
-        // We cannot use event.charactersIgnoringModifiers because it returns the character
-        // based on the current keyboard layout, not the physical key position
-        // For example, on QWERTZ: physical key at position 0x06 (Z on QWERTY) returns 'y'
+        // CRITICAL: Get character directly from the event
+        // When using Input Sources like Swiss French, macOS already handles the layout conversion
+        // The character we receive is what the user expects to type
+        // For example, with Swiss French QWERTZ:
+        //   - User presses physical 'Z' key (where Y is on QWERTZ)
+        //   - macOS sends: keyCode=0x10 (QWERTY Y position), character='z' (Swiss French mapping)
+        //   - We should use character='z' for Telex processing
 
-        // Determine if Shift is pressed (for uppercase and special characters)
-        let hasShiftModifier = event.flags.contains(.maskShift)
-        let hasCapsLock = event.flags.contains(.maskAlphaShift)
-
-        // Get QWERTY character from physical key position
-        guard let qwertyCharacter = KeyCodeToCharacter.qwertyCharacter(keyCode: keyCode, withShift: hasShiftModifier) else {
-            // Not a printable character or not mapped
+        // Get character from event (respects current Input Source)
+        guard let characters = event.characters,
+              let character = characters.first else {
             return event
         }
 
+        // Determine if Shift/CapsLock is pressed
+        let hasShiftModifier = event.flags.contains(.maskShift)
+        let hasCapsLock = event.flags.contains(.maskAlphaShift)
+
         // Determine if uppercase:
         // - For letters: Shift XOR Caps Lock (standard behavior)
-        // - For special characters: use Shift flag
-        let isLetter = qwertyCharacter.isLetter
-        let isUppercase = isLetter ? (hasShiftModifier != hasCapsLock) : hasShiftModifier
+        // - For non-letters: use the character as-is
+        let isLetter = character.isLetter
+        let isUppercase = isLetter ? (hasShiftModifier != hasCapsLock) : character.isUppercase
 
-        // Use the QWERTY character for processing
-        let character = qwertyCharacter
+        // Convert character to QWERTY keyCode for engine processing
+        // Engine expects keyCode based on QWERTY layout (e.g., 'z' → 0x06)
+        // This ensures Vietnamese processing works correctly regardless of Input Source
+        let engineKeyCode: CGKeyCode
+        if let convertedKeyCode = KeyCodeToCharacter.keyCode(forCharacter: character) {
+            engineKeyCode = convertedKeyCode
+        } else {
+            // Fallback to physical keyCode if character not found in mapping
+            engineKeyCode = keyCode
+        }
 
         // Check if we're in English mode with macro support
         let isEnglishModeWithMacro = !isVietnameseEnabled && macroEnabled && macroInEnglishMode
@@ -424,7 +434,7 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
 
         // In English mode with macro, only accumulate macro keys without Vietnamese processing
         if isEnglishModeWithMacro {
-            engine.addKeyToMacroBuffer(keyCode: keyCode, isCaps: isUppercase)
+            engine.addKeyToMacroBuffer(keyCode: engineKeyCode, isCaps: isUppercase)
             return event  // Pass through without Vietnamese processing
         }
 
@@ -435,7 +445,7 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
         // Process through engine (Vietnamese mode)
         let result = engine.processKey(
             character: character,
-            keyCode: keyCode,
+            keyCode: engineKeyCode,
             isUppercase: isUppercase
         )
 
