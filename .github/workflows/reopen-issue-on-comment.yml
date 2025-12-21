@@ -16,46 +16,92 @@ jobs:
       github.event.comment.user.type != 'Bot'
 
     steps:
-      - name: Reopen issue
+      - name: Check and reopen issue
         uses: actions/github-script@v7
+        id: reopen
         with:
           script: |
+            const commenter = context.payload.comment.user.login;
+            const commentCreatedAt = new Date(context.payload.comment.created_at);
+            
+            // Get issue details to check closed_at time
+            const issue = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const issueClosedAt = new Date(issue.data.closed_at);
+            
+            // Calculate time difference between issue close and comment creation
+            const timeDiffSeconds = Math.abs(commentCreatedAt - issueClosedAt) / 1000;
+            
+            console.log(`📊 Issue closed at: ${issueClosedAt.toISOString()}`);
+            console.log(`📊 Comment created at: ${commentCreatedAt.toISOString()}`);
+            console.log(`📊 Time difference: ${timeDiffSeconds} seconds`);
+            
+            // Check if commenter is owner or collaborator
+            const repo = await github.rest.repos.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const isOwner = commenter === repo.data.owner.login;
+            
+            let isCollaborator = false;
+            try {
+              const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: commenter
+              });
+              isCollaborator = ['admin', 'write'].includes(permission.data.permission);
+            } catch (e) {
+              isCollaborator = false;
+            }
+            
+            const hasWriteAccess = isOwner || isCollaborator;
+            
+            // If commenter has write access AND comment was created within 10 seconds of issue close,
+            // this is likely a "Close with comment" action - don't reopen
+            if (hasWriteAccess && timeDiffSeconds < 10) {
+              console.log(`ℹ️ Skipped reopening - detected "Close with comment" action by @${commenter}`);
+              core.setOutput('reopened', 'false');
+              core.setOutput('reason', 'close_with_comment');
+              return;
+            }
+            
+            // Reopen the issue
             await github.rest.issues.update({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               state: 'open'
             });
-
+            
             console.log(`✅ Reopened issue #${context.issue.number}`);
-
-      - name: Add comment explaining reopen
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // Get repository info to check if commenter is the owner
-            const repo = await github.rest.repos.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo
-            });
-
-            const isOwner = context.payload.comment.user.login === repo.data.owner.login;
-
-            // Only add comment if commenter is not the repo owner
-            if (!isOwner) {
+            core.setOutput('reopened', 'true');
+            
+            // Add comment explaining reopen (skip if commenter has write access)
+            if (!hasWriteAccess) {
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: '🔄 Issue đã được tự động mở lại do có comment mới từ @' + context.payload.comment.user.login
+                body: '🔄 Issue đã được tự động mở lại do có comment mới từ @' + commenter
               });
-              console.log(`✅ Added reopen comment (commenter: @${context.payload.comment.user.login})`);
+              console.log(`✅ Added reopen comment`);
             } else {
-              console.log(`ℹ️ Skipped adding comment (commenter is repo owner: @${context.payload.comment.user.login})`);
+              console.log(`ℹ️ Skipped adding comment (commenter @${commenter} has write access)`);
             }
 
       - name: Summary
         run: |
-          echo "✅ Issue #${{ github.event.issue.number }} đã được reopen" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.reopen.outputs.reopened }}" == "true" ]; then
+            echo "✅ Issue #${{ github.event.issue.number }} đã được reopen" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ Issue #${{ github.event.issue.number }} KHÔNG được reopen (phát hiện 'Close with comment')" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "👤 Comment từ: @${{ github.event.comment.user.login }}" >> $GITHUB_STEP_SUMMARY
           echo "🔗 Issue URL: ${{ github.event.issue.html_url }}" >> $GITHUB_STEP_SUMMARY
+
