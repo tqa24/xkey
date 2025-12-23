@@ -7,15 +7,46 @@
 
 import Foundation
 import Sparkle
+import AppKit
 
 /// Delegate class to handle Sparkle update lifecycle events
-/// Primary purpose: Force save settings to plist before app restarts for update
-class SparkleUpdateDelegate: NSObject, SPUUpdaterDelegate {
+/// Primary purpose: 
+/// 1. Force save settings to plist before app restarts for update
+/// 2. Bring update dialog to front for menu bar apps
+class SparkleUpdateDelegate: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
     
     // MARK: - Debug Logging Callback
     
     /// Callback for logging debug messages
     var debugLogCallback: ((String) -> Void)?
+    
+    // MARK: - SPUStandardUserDriverDelegate
+    
+    /// Called when Sparkle is about to show a scheduled update dialog
+    /// We use this to bring the app to front so the update dialog is visible
+    func standardUserDriverWillHandleShowingUpdate(_ handleShowingUpdate: Bool, forUpdate update: SUAppcastItem, state: SPUUserUpdateState) {
+        logDebug("🔔 Sparkle: Will show update dialog for v\(update.displayVersionString)")
+        
+        // Bring the app to front so the update dialog is visible
+        // This is important for menu bar apps where the dialog would otherwise appear behind other windows
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+    
+    /// Called to determine if we should handle showing the scheduled update
+    /// Return true to let Sparkle show the update in focus
+    func standardUserDriverShouldHandleShowingScheduledUpdate(_ update: SUAppcastItem, andInImmediateFocus immediateFocus: Bool) -> Bool {
+        logDebug("🔔 Sparkle: Should handle showing scheduled update v\(update.displayVersionString), immediateFocus=\(immediateFocus)")
+        
+        // Activate the app to bring it to front
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        
+        // Return true to show the update dialog in focus
+        return true
+    }
     
     // MARK: - SPUUpdaterDelegate
     

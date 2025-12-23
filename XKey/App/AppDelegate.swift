@@ -1019,7 +1019,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             updaterController = SPUStandardUpdaterController(
                 startingUpdater: true,
                 updaterDelegate: sparkleUpdateDelegate,
-                userDriverDelegate: nil
+                userDriverDelegate: sparkleUpdateDelegate  // Also use as user driver delegate to bring update dialog to front
             )
             
             debugWindowController?.logEvent("✅ Sparkle auto-update initialized")
