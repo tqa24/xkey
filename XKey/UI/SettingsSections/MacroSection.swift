@@ -43,6 +43,16 @@ struct MacroSection: View {
                                 TextField("vd: btw", text: $newMacroText)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 120)
+                                    .onChange(of: newMacroText) { newValue in
+                                        // Filter out Vietnamese diacritics and spaces
+                                        let filtered = filterMacroAbbreviation(newValue)
+                                        if filtered != newValue {
+                                            newMacroText = filtered
+                                        }
+                                    }
+                                Text("Không hỗ trợ dấu tiếng Việt và khoảng cách")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
@@ -160,6 +170,25 @@ struct MacroSection: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             showError = false
         }
+    }
+    
+    /// Filter out Vietnamese diacritics and spaces from macro abbreviation
+    /// Vietnamese characters with diacritics are converted to their base ASCII form
+    private func filterMacroAbbreviation(_ text: String) -> String {
+        // Remove spaces first
+        let noSpaces = text.replacingOccurrences(of: " ", with: "")
+        
+        // Convert Vietnamese characters to ASCII equivalents
+        // This removes diacritics: á → a, é → e, etc.
+        let normalized = noSpaces.folding(options: .diacriticInsensitive, locale: .current)
+        
+        // Only keep ASCII characters (letters, numbers, and common symbols)
+        let filtered = normalized.unicodeScalars.filter { scalar in
+            // Allow ASCII printable characters (except space which we already removed)
+            return scalar.value >= 33 && scalar.value <= 126
+        }
+        
+        return String(String.UnicodeScalarView(filtered))
     }
 }
 

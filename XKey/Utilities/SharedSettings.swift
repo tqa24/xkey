@@ -9,7 +9,8 @@
 import Foundation
 
 /// App Group identifier for sharing data between XKey and XKeyIM
-let kXKeyAppGroup = "group.com.codetay.inputmethod.XKey"
+/// Note: macOS Sequoia+ requires TeamID prefix for native apps distributed outside App Store
+let kXKeyAppGroup = "7E6Z9B4F2H.com.codetay.inputmethod.XKey"
 
 /// Keys for shared settings
 enum SharedSettingsKey: String {
@@ -98,7 +99,7 @@ class SharedSettings {
         SharedSettingsKey.modernStyle.rawValue: false,
         SharedSettingsKey.spellCheckEnabled.rawValue: false,
         SharedSettingsKey.englishDetectionEnabled.rawValue: false,
-        SharedSettingsKey.quickTelexEnabled.rawValue: true,
+        SharedSettingsKey.quickTelexEnabled.rawValue: false,
         SharedSettingsKey.restoreIfWrongSpelling.rawValue: true,
         SharedSettingsKey.freeMarkEnabled.rawValue: false,
         SharedSettingsKey.imkitUseMarkedText.rawValue: true,
@@ -515,6 +516,27 @@ class SharedSettings {
     /// This function is kept for compatibility but does nothing
     func synchronize() {
         // No-op: plist writes are immediate
+    }
+    
+    /// Force write all current settings to plist file
+    /// This is used before Sparkle restarts the app after an update
+    /// to ensure settings are saved to the current App Group container
+    /// In case of App Group path change between versions, this ensures
+    /// settings are written to the correct location
+    func forceWriteCurrentSettings() {
+        // Read the current plist dictionary
+        let currentDict = readPlistDict()
+        
+        // If nothing to save, skip
+        guard !currentDict.isEmpty else {
+            sharedLogWarning("forceWriteCurrentSettings: No settings to save")
+            return
+        }
+        
+        // Force write it back to ensure the file exists and is up-to-date
+        writePlistDict(currentDict)
+        
+        sharedLogSuccess("Force saved \(currentDict.count) settings to plist")
     }
 
     /// Notify that settings have changed (for observers)

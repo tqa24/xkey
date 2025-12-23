@@ -44,6 +44,7 @@
 		10F26F102ED6CAF900B9FA1F /* SmartSwitchManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F26F0C2ED6CAF900B9FA1F /* SmartSwitchManager.swift */; };
 		10F26F112ED6CAF900B9FA1F /* VietnameseData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F26F0D2ED6CAF900B9FA1F /* VietnameseData.swift */; };
 		10F26F132ED6CAF900B9FA1F /* MacroManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10F26F0B2ED6CAF900B9FA1F /* MacroManager.swift */; };
+		10FA30B72EFA65B100C41BF8 /* SparkleUpdateDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10FA30B62EFA65B100C41BF8 /* SparkleUpdateDelegate.swift */; };
 		10FDCC192EF5885200B2D9AC /* AppBehaviorDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10FDCC172EF5885200B2D9AC /* AppBehaviorDetector.swift */; };
 		10FDCC1A2EF5885200B2D9AC /* AppBehaviorDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10FDCC172EF5885200B2D9AC /* AppBehaviorDetector.swift */; };
 		10FDCC1C2EF5942400B2D9AC /* InputSourceSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10FDCC1B2EF5942400B2D9AC /* InputSourceSwitcher.swift */; };
@@ -53,7 +54,7 @@
 		564995EF131811377C4F3FF6 /* VNEngineAdvanced.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F6BDFF6F99DC1B577BA425 /* VNEngineAdvanced.swift */; };
 		5A61FAA58A29AD3225DD649C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 803B94EF161FE79A022FF806 /* SettingsView.swift */; };
 		5FEB1775ED6A86BD90EEE11F /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EAA0ED7079ABD1980FBFFAE /* SettingsWindowController.swift */; };
-		795D22D182670DD83BDECF21 /* WindowTitleRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9E201050648938B3927D7A /* WindowTitleRulesView.swift */; };
+		795D22D182670DD83BDECF21 /* XKey/UI/WindowTitleRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E9E201050648938B3927D7A /* XKey/UI/WindowTitleRulesView.swift */; };
 		7FBD214005ADB766CB3DF3B8 /* VNEngineMacro.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF69262CDE29C3D3410A3567 /* VNEngineMacro.swift */; };
 		81891108B8C7C600973DBBB2 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE144E0F510944E89100C852 /* SharedComponents.swift */; };
 		A1000001 /* XKeyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* XKeyApp.swift */; };
@@ -110,11 +111,12 @@
 		10F26F0B2ED6CAF900B9FA1F /* MacroManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacroManager.swift; sourceTree = "<group>"; };
 		10F26F0C2ED6CAF900B9FA1F /* SmartSwitchManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartSwitchManager.swift; sourceTree = "<group>"; };
 		10F26F0D2ED6CAF900B9FA1F /* VietnameseData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VietnameseData.swift; sourceTree = "<group>"; };
+		10FA30B62EFA65B100C41BF8 /* SparkleUpdateDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparkleUpdateDelegate.swift; sourceTree = "<group>"; };
 		10FDCC172EF5885200B2D9AC /* AppBehaviorDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBehaviorDetector.swift; sourceTree = "<group>"; };
 		10FDCC1B2EF5942400B2D9AC /* InputSourceSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourceSwitcher.swift; sourceTree = "<group>"; };
 		2FB7B1CC880090240CFD79B3 /* ExcludedAppsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ExcludedAppsSection.swift; sourceTree = "<group>"; };
 		3A3D9B46E4A73E69A837ADAD /* ConvertToolSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConvertToolSection.swift; sourceTree = "<group>"; };
-		3E9E201050648938B3927D7A /* WindowTitleRulesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XKey/UI/WindowTitleRulesView.swift; sourceTree = SOURCE_ROOT; };
+		3E9E201050648938B3927D7A /* XKey/UI/WindowTitleRulesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XKey/UI/WindowTitleRulesView.swift; sourceTree = SOURCE_ROOT; };
 		49F58879C0DDD2958AA9FF0D /* MacroSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacroSection.swift; sourceTree = "<group>"; };
 		4A2608F3ABD0C3E93C052478 /* QuickTypingSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = QuickTypingSection.swift; sourceTree = "<group>"; };
 		4EE4B88BB1709FA867C406CE /* KeyCodeToCharacter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = KeyCodeToCharacter.swift; sourceTree = "<group>"; };
@@ -156,17 +158,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		100D2BAE2EF2B89600C26B87 /* XKeyIM */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = XKeyIM;
-			sourceTree = "<group>";
-		};
+		100D2BAE2EF2B89600C26B87 /* XKeyIM */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = XKeyIM; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -203,7 +195,6 @@
 				2FB7B1CC880090240CFD79B3 /* ExcludedAppsSection.swift */,
 				CE144E0F510944E89100C852 /* SharedComponents.swift */,
 			);
-			name = SettingsSections;
 			path = SettingsSections;
 			sourceTree = "<group>";
 		};
@@ -267,6 +258,7 @@
 		A5000004 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				10FA30B62EFA65B100C41BF8 /* SparkleUpdateDelegate.swift */,
 				A2000001 /* XKeyApp.swift */,
 				A2000002 /* AppDelegate.swift */,
 			);
@@ -311,7 +303,7 @@
 				MACROVM002 /* MacroManagementViewModel.swift */,
 				CONVERTVM002 /* ConvertToolViewModel.swift */,
 				EXCLUDEDAPPS002 /* ExcludedAppsView.swift */,
-				3E9E201050648938B3927D7A /* WindowTitleRulesView.swift */,
+				3E9E201050648938B3927D7A /* XKey/UI/WindowTitleRulesView.swift */,
 				0D7A4B3BFC35CF0327897BFD /* SettingsSections */,
 			);
 			path = UI;
@@ -492,6 +484,7 @@
 				10A2149A2ED42DFA005B52BD /* PreferencesWindowController.swift in Sources */,
 				1084A5462ED41EB200EA2D2A /* PreferencesViewModel.swift in Sources */,
 				1084A5472ED41EB200EA2D2A /* PreferencesView.swift in Sources */,
+				10FA30B72EFA65B100C41BF8 /* SparkleUpdateDelegate.swift in Sources */,
 				A1000005 /* VowelSequenceValidator.swift in Sources */,
 				A1000006 /* VNWordBuffer.swift in Sources */,
 				A1000007 /* InputProcessor.swift in Sources */,
@@ -523,7 +516,7 @@
 				EXCLUDEDAPPS001 /* ExcludedAppsView.swift in Sources */,
 				100D2BE62EF2C72600C26B87 /* SharedSettings.swift in Sources */,
 				F97414DA17E4F78264530EF0 /* KeyCodeToCharacter.swift in Sources */,
-				795D22D182670DD83BDECF21 /* WindowTitleRulesView.swift in Sources */,
+				795D22D182670DD83BDECF21 /* XKey/UI/WindowTitleRulesView.swift in Sources */,
 				0B6000E78A4C06F6DCE7780B /* DebugLogger.swift in Sources */,
 				ECDC6B719E71FFE4F91DC588 /* GeneralSection.swift in Sources */,
 				CEBF55C134CDBDA34B5E84A8 /* QuickTypingSection.swift in Sources */,
@@ -553,7 +546,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7E6Z9B4F2H;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -590,7 +583,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 7E6Z9B4F2H;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -750,7 +743,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 7E6Z9B4F2H;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XKey/Info.plist;
@@ -764,7 +757,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.codetay.XKey.debug;
+				PRODUCT_BUNDLE_IDENTIFIER = com.codetay.XKey;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -784,7 +777,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 7E6Z9B4F2H;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = XKey/Info.plist;

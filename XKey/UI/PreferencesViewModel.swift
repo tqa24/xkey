@@ -35,10 +35,12 @@ class PreferencesViewModel: ObservableObject {
                     try SMAppService.mainApp.unregister()
                 }
             } catch {
-                
+                // Failed to set login item, ignore silently
             }
         } else {
-            SMLoginItemSetEnabled("group.com.codetay.inputmethod.XKey.debug" as CFString, enabled)
+            // Fallback for macOS 12.x
+            // Note: SMLoginItemSetEnabled requires bundle identifier, not App Group ID
+            SMLoginItemSetEnabled("com.codetay.XKey" as CFString, enabled)
         }
     }
 }

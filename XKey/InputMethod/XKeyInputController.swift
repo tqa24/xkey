@@ -64,7 +64,8 @@ class XKeyInputController: IMKInputController {
     private func loadSettings() {
         // Load from shared plist file
         // This allows settings to be shared between XKey and XKeyIM
-        let appGroup = "group.com.codetay.inputmethod.XKey"
+        // Note: macOS Sequoia+ requires TeamID prefix for native apps outside App Store
+        let appGroup = "7E6Z9B4F2H.com.codetay.inputmethod.XKey"
         
         guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else {
             return

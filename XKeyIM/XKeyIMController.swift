@@ -766,7 +766,8 @@ class XKeyIMController: IMKInputController {
 class XKeyIMSettings {
     
     /// App Group identifier
-    private let appGroup = "group.com.codetay.inputmethod.XKey"
+    /// Note: macOS Sequoia+ requires TeamID prefix for native apps outside App Store
+    private let appGroup = "7E6Z9B4F2H.com.codetay.inputmethod.XKey"
     
     /// Cache of plist URL
     private lazy var plistURL: URL? = {

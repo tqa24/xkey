@@ -39,6 +39,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var switchXKeyHotkeyMonitor: Any?
     private var switchXKeyGlobalHotkeyMonitor: Any?
     private var updaterController: SPUStandardUpdaterController?
+    private var sparkleUpdateDelegate: SparkleUpdateDelegate?
 
     // MARK: - Initialization
 
@@ -1000,18 +1001,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
     private func setupSparkleUpdater() {
+        // Create the update delegate first
+        sparkleUpdateDelegate = SparkleUpdateDelegate()
+        
+        // Connect debug logging to the delegate
+        sparkleUpdateDelegate?.debugLogCallback = { [weak self] message in
+            self?.debugWindowController?.logEvent(message)
+        }
+        
         do {
-            // Initialize Sparkle updater controller
+            // Initialize Sparkle updater controller with our delegate
             // This will automatically check for updates based on Info.plist settings:
             // - SUFeedURL: appcast feed URL
             // - SUPublicEDKey: public key for signature verification
             // - SUEnableAutomaticChecks: enable automatic update checks
             // - SUScheduledCheckInterval: check interval in seconds (86400 = 24 hours)
-            updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: sparkleUpdateDelegate,
+                userDriverDelegate: nil
+            )
             
             debugWindowController?.logEvent("✅ Sparkle auto-update initialized")
             debugWindowController?.logEvent("   Feed URL: \(Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String ?? "Not configured")")
             debugWindowController?.logEvent("   Auto-check: \(Bundle.main.object(forInfoDictionaryKey: "SUEnableAutomaticChecks") as? Bool ?? false)")
+            debugWindowController?.logEvent("   Update delegate: SparkleUpdateDelegate (settings will be saved before restart)")
+            
+            // Check for updates immediately on app launch (silently in background)
+            // This ensures updates are always checked at startup, not just on schedule
+            // The dialog will only appear if a new update is found
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+                guard let updater = self?.updaterController?.updater else { return }
+                
+                // Use background check - won't show UI if no update available
+                if updater.canCheckForUpdates {
+                    self?.debugWindowController?.logEvent("🔍 Checking for updates in background (startup check)...")
+                    updater.checkForUpdatesInBackground()
+                } else {
+                    self?.debugWindowController?.logEvent("⏸️ Skipping startup update check (already checking or in progress)")
+                }
+            }
             
         } catch {
             debugWindowController?.logEvent("❌ Failed to initialize Sparkle: \(error)")
