@@ -99,17 +99,13 @@ class DebugLogger {
             writeToFile(fullMessage)
         case .info, .success:
             // Only log info/success in DEBUG mode
-            #if DEBUG
             writeToFile(fullMessage)
-            #endif
         case .debug:
             // Only log debug if verbose mode is enabled
-            #if DEBUG
             let verbose = debugWindowController?.isVerboseLogging ?? isVerboseLogging
             if verbose {
                 writeToFile(fullMessage)
             }
-            #endif
         }
     }
 

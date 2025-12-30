@@ -436,8 +436,9 @@ class CharacterInjector {
     }
 
     
-    /// Get text before cursor until space (for debugging)
-    private func getTextBeforeCursor() -> String? {
+    /// Get text (word) before cursor until space
+    /// Used for spell checking when engine loses context (e.g., after backspace into previous word)
+    func getTextBeforeCursor() -> String? {
         let systemWideElement = AXUIElementCreateSystemWide()
         
         var focusedElement: CFTypeRef?

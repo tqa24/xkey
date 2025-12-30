@@ -74,17 +74,20 @@
 		A1000009 /* EventTapManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* EventTapManager.swift */; };
 		A100000A /* CharacterInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000A /* CharacterInjector.swift */; };
 		A100000B /* KeyboardEventHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000B /* KeyboardEventHandler.swift */; };
+		AA51E2E403268ACC6EF82BA4 /* TempOffToolbarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE2F92D3911EB5987686864 /* TempOffToolbarViewModel.swift */; };
 		APPVERSION001 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPVERSION002 /* AppVersion.swift */; };
 		BD23C4DFC4585965C86E2B51 /* BackupRestoreSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69901F64AACBE0FBAC7C0E0F /* BackupRestoreSection.swift */; };
 		C4EDC498282B5B6D76626F6D /* AdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F362794B762A19FE8D883F35 /* AdvancedSection.swift */; };
 		CEBF55C134CDBDA34B5E84A8 /* QuickTypingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2608F3ABD0C3E93C052478 /* QuickTypingSection.swift */; };
 		CONVERTVM001 /* ConvertToolViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CONVERTVM002 /* ConvertToolViewModel.swift */; };
+		DA898EBD755CC092AEB1B685 /* TempOffToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B65F5E57423E05ADF4033DCD /* TempOffToolbarView.swift */; };
 		DEBUGVIEW001 /* DebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGVIEW002 /* DebugView.swift */; };
 		DEBUGVM001 /* DebugViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEBUGVM002 /* DebugViewModel.swift */; };
 		E2BB81375FD0B38574D4F669 /* SharedSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100D2BE52EF2C72600C26B87 /* SharedSettings.swift */; };
 		E52C23534F4E3183B55BE6D0 /* ExcludedAppsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FB7B1CC880090240CFD79B3 /* ExcludedAppsSection.swift */; };
 		E575FD959786D9DC3A1E6856 /* ConvertToolSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A3D9B46E4A73E69A837ADAD /* ConvertToolSection.swift */; };
 		E93062521966136C34EDEC22 /* VNEngineSmartSwitch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AAC14FFBBB2B10B6A983B1A /* VNEngineSmartSwitch.swift */; };
+		EA073CDD9FDCDED0416D29FA /* TempOffToolbarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C93A308BF783CDE94C5E53A /* TempOffToolbarController.swift */; };
 		ECDC6B719E71FFE4F91DC588 /* GeneralSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 076839C4C1B18C9FC1474F37 /* GeneralSection.swift */; };
 		EXCLUDEDAPPS001 /* ExcludedAppsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EXCLUDEDAPPS002 /* ExcludedAppsView.swift */; };
 		F3F2891E34784154B457BA39 /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98D22A491FA1C51411B4A156 /* AppearanceSection.swift */; };
@@ -135,8 +138,10 @@
 		608CA8088C2F70FEC4ABA340 /* XKeyIMUpdateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XKeyIMUpdateManager.swift; sourceTree = "<group>"; };
 		69901F64AACBE0FBAC7C0E0F /* BackupRestoreSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackupRestoreSection.swift; sourceTree = "<group>"; };
 		803B94EF161FE79A022FF806 /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		8C93A308BF783CDE94C5E53A /* TempOffToolbarController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TempOffToolbarController.swift; sourceTree = "<group>"; };
 		8EAA0ED7079ABD1980FBFFAE /* SettingsWindowController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
 		98D22A491FA1C51411B4A156 /* AppearanceSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppearanceSection.swift; sourceTree = "<group>"; };
+		9DE2F92D3911EB5987686864 /* TempOffToolbarViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TempOffToolbarViewModel.swift; sourceTree = "<group>"; };
 		A0000001 /* XKey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XKey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A2000001 /* XKeyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XKeyApp.swift; sourceTree = "<group>"; };
 		A2000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -153,6 +158,7 @@
 		A3000002 /* XKey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XKey.entitlements; sourceTree = "<group>"; };
 		A7801294053CCB45DE7232D2 /* VNEngineSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VNEngineSettings.swift; sourceTree = "<group>"; };
 		APPVERSION002 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
+		B65F5E57423E05ADF4033DCD /* TempOffToolbarView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TempOffToolbarView.swift; sourceTree = "<group>"; };
 		CE144E0F510944E89100C852 /* SharedComponents.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
 		CONVERTVM002 /* ConvertToolViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertToolViewModel.swift; sourceTree = "<group>"; };
 		DEBUGVIEW002 /* DebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugView.swift; sourceTree = "<group>"; };
@@ -238,6 +244,17 @@
 				51300ED94BA488E725A6605B /* DebugLogger.swift */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		53FD9B0D641FE6019C3870E0 /* TempOffToolbar */ = {
+			isa = PBXGroup;
+			children = (
+				8C93A308BF783CDE94C5E53A /* TempOffToolbarController.swift */,
+				B65F5E57423E05ADF4033DCD /* TempOffToolbarView.swift */,
+				9DE2F92D3911EB5987686864 /* TempOffToolbarViewModel.swift */,
+			);
+			name = TempOffToolbar;
+			path = TempOffToolbar;
 			sourceTree = "<group>";
 		};
 		A5000001 = {
@@ -327,6 +344,7 @@
 				3E9E201050648938B3927D7A /* WindowTitleRulesView.swift */,
 				0D7A4B3BFC35CF0327897BFD /* SettingsSections */,
 				1D1AFFFF1204DAB29F3AAE19 /* LogFileReader.swift */,
+				53FD9B0D641FE6019C3870E0 /* TempOffToolbar */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -559,6 +577,9 @@
 				81891108B8C7C600973DBBB2 /* SharedComponents.swift in Sources */,
 				4CA5C6995A6B89E33A173709 /* LogFileReader.swift in Sources */,
 				1A471CE86C0F7A587EF6B590 /* XKeyIMUpdateManager.swift in Sources */,
+				EA073CDD9FDCDED0416D29FA /* TempOffToolbarController.swift in Sources */,
+				DA898EBD755CC092AEB1B685 /* TempOffToolbarView.swift in Sources */,
+				AA51E2E403268ACC6EF82BA4 /* TempOffToolbarViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -27,8 +27,6 @@ extension VNEngine {
         var restoreIfWrongSpelling: Bool = true
 
         var allowConsonantZFWJ: Bool = false
-        var tempOffSpellingEnabled: Bool = false
-        var tempOffEngineEnabled: Bool = false
         
         // Macro settings
         var macroEnabled: Bool = false
@@ -71,8 +69,6 @@ extension VNEngine {
 
         vAllowConsonantZFWJ = settings.allowConsonantZFWJ ? 1 : 0
         vFreeMark = settings.freeMarking ? 1 : 0
-        vTempOffSpelling = settings.tempOffSpellingEnabled ? 1 : 0
-        vTempOffOpenKey = settings.tempOffEngineEnabled ? 1 : 0
         
         // Macro settings
         vUseMacro = settings.macroEnabled ? 1 : 0
@@ -118,8 +114,6 @@ extension VNEngine {
 
         settings.allowConsonantZFWJ = vAllowConsonantZFWJ == 1
         settings.freeMarking = vFreeMark == 1
-        settings.tempOffSpellingEnabled = vTempOffSpelling == 1
-        settings.tempOffEngineEnabled = vTempOffOpenKey == 1
         
         // Macro settings
         settings.macroEnabled = vUseMacro == 1

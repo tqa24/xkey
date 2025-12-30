@@ -44,8 +44,7 @@ struct Preferences: Codable {
     var instantRestoreOnWrongSpelling: Bool = false // Restore immediately when wrong spelling detected
     var allowConsonantZFWJ: Bool = false         // Allow Z, F, W, J consonants
     var freeMarkEnabled: Bool = false            // Free mark placement (đặt dấu tự do)
-    var tempOffSpellingEnabled: Bool = false     // Temp off spelling with Ctrl key
-    var tempOffEngineEnabled: Bool = false       // Temp off engine with Option key
+    var tempOffToolbarEnabled: Bool = false      // Show floating toolbar for temp off controls
     
     // Macro settings
     var macroEnabled: Bool = false               // Enable text shortcuts

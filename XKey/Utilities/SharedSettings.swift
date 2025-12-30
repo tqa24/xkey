@@ -38,8 +38,7 @@ enum SharedSettingsKey: String {
 
     case allowConsonantZFWJ = "XKey.allowConsonantZFWJ"
     case freeMarkEnabled = "XKey.freeMarkEnabled"
-    case tempOffSpellingEnabled = "XKey.tempOffSpellingEnabled"
-    case tempOffEngineEnabled = "XKey.tempOffEngineEnabled"
+    case tempOffToolbarEnabled = "XKey.tempOffToolbarEnabled"
 
     // Macro settings
     case macroEnabled = "XKey.macroEnabled"
@@ -348,14 +347,9 @@ class SharedSettings {
         }
     }
 
-    var tempOffSpellingEnabled: Bool {
-        get { readBool(forKey: SharedSettingsKey.tempOffSpellingEnabled.rawValue) }
-        set { writeBool(newValue, forKey: SharedSettingsKey.tempOffSpellingEnabled.rawValue) }
-    }
-
-    var tempOffEngineEnabled: Bool {
-        get { readBool(forKey: SharedSettingsKey.tempOffEngineEnabled.rawValue) }
-        set { writeBool(newValue, forKey: SharedSettingsKey.tempOffEngineEnabled.rawValue) }
+    var tempOffToolbarEnabled: Bool {
+        get { readBool(forKey: SharedSettingsKey.tempOffToolbarEnabled.rawValue) }
+        set { writeBool(newValue, forKey: SharedSettingsKey.tempOffToolbarEnabled.rawValue) }
     }
 
     // MARK: - Macro Settings
@@ -705,8 +699,7 @@ class SharedSettings {
 
         prefs.allowConsonantZFWJ = allowConsonantZFWJ
         prefs.freeMarkEnabled = freeMarkEnabled
-        prefs.tempOffSpellingEnabled = tempOffSpellingEnabled
-        prefs.tempOffEngineEnabled = tempOffEngineEnabled
+        prefs.tempOffToolbarEnabled = tempOffToolbarEnabled
 
         // Macro settings
         prefs.macroEnabled = macroEnabled
@@ -784,8 +777,7 @@ class SharedSettings {
 
         allowConsonantZFWJ = prefs.allowConsonantZFWJ
         freeMarkEnabled = prefs.freeMarkEnabled
-        tempOffSpellingEnabled = prefs.tempOffSpellingEnabled
-        tempOffEngineEnabled = prefs.tempOffEngineEnabled
+        tempOffToolbarEnabled = prefs.tempOffToolbarEnabled
 
         // Macro settings
         macroEnabled = prefs.macroEnabled

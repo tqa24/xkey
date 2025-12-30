@@ -67,7 +67,8 @@ class VNEngine {
     var vAutoCapsMacro = 0         // 0: No, 1: Yes
     var vUseSmartSwitchKey = 0     // 0: No, 1: Yes
     var vUpperCaseFirstChar = 0    // 0: No, 1: Yes
-    var vTempOffSpelling = 0       // 0: No, 1: Yes
+    var vTempOffSpelling = 0       // 0: No, 1: Yes (temp off spell check via toolbar)
+    var vTempOffEngine = 0         // 0: No, 1: Yes (temp off engine via toolbar)
     var vAllowConsonantZFWJ = 0    // 0: No, 1: Yes
     var vQuickStartConsonant = 0   // 0: No, 1: Yes (f->ph, j->gi, w->qu)
     var vQuickEndConsonant = 0     // 0: No, 1: Yes (g->ng, h->nh, k->ch)
@@ -92,19 +93,23 @@ class VNEngine {
     var useSpellCheckingBefore = false
     var hasHandleQuickConsonant = false
     var willTempOffEngine = false
-    
+
     /// Flag to track when cursor was moved by mouse click or arrow keys
     /// When true, restore logic is skipped because engine doesn't have full context
     /// of the word being edited (user may be editing middle of an existing word)
     var cursorMovedSinceReset = false
-    
+
 
     
     // MARK: - Logging
-    
+
     /// Logging callback
     var logCallback: ((String) -> Void)?
-    
+
+    /// Callback to get word before cursor using Accessibility API
+    /// Returns the actual word from the text field, or nil if AX not available
+    var getWordBeforeCursorCallback: (() -> String?)?
+
     // MARK: - Hook State (result to send back)
     
     struct HookState {
@@ -239,7 +244,8 @@ class VNEngine {
         
         // Check restore if wrong spelling
         // IMPORTANT: Skip restore if cursor was moved (editing mid-word)
-        if vRestoreIfWrongSpelling == 1 && isWordBreak(keyCode: keyCode) && !cursorMovedSinceReset {
+        // Also skip if spelling is temporarily off via toolbar
+        if vRestoreIfWrongSpelling == 1 && vTempOffSpelling == 0 && isWordBreak(keyCode: keyCode) && !cursorMovedSinceReset {
             if !tempDisableKey && vCheckSpelling == 1 {
                 checkSpelling(forceCheckVowel: true)
             }
@@ -317,7 +323,7 @@ class VNEngine {
         if (vQuickStartConsonant == 1 || vQuickEndConsonant == 1) && !tempDisableKey {
             checkQuickConsonant()
             spaceCount += 1
-        } else if vRestoreIfWrongSpelling == 1 && tempDisableKey && !hasHandledMacro && !cursorMovedSinceReset {
+        } else if vRestoreIfWrongSpelling == 1 && vTempOffSpelling == 0 && tempDisableKey && !hasHandledMacro && !cursorMovedSinceReset {
             // Skip restore if cursor was moved (editing mid-word)
             if !checkRestoreIfWrongSpelling(handleCode: vRestore) {
                 hookState.code = UInt8(vDoNothing)
@@ -420,6 +426,16 @@ class VNEngine {
         if willTempOffEngine {
             hookState.code = UInt8(vDoNothing)
             hookState.extCode = 3
+            return
+        }
+
+        // Temp off engine via toolbar - just insert key without Vietnamese processing
+        if vTempOffEngine == 1 {
+            hookState.code = UInt8(vDoNothing)
+            hookState.backspaceCount = 0
+            hookState.newCharCount = 0
+            hookState.extCode = 3
+            insertKey(keyCode: keyCode, isCaps: isCaps)
             return
         }
 
@@ -1454,6 +1470,12 @@ class VNEngine {
             return
         }
         
+        // Temporary off spelling via toolbar - skip spell check
+        if vTempOffSpelling == 1 {
+            tempDisableKey = false
+            return
+        }
+        
         logCallback?("checkSpelling: index=\(index), word=\(getCurrentWord()), forceCheckVowel=\(forceCheckVowel)")
         
         // Reset spelling state - always pass phonetic check (we only use dictionary now)
@@ -2230,9 +2252,13 @@ class VNEngine {
     
     func restoreLastTypingState() {
         logCallback?("restoreLastTypingState: typingStates.count=\(typingStates.count)")
-        
+
         if typingStates.isEmpty {
             logCallback?("  → typingStates is empty, nothing to restore")
+            // Engine has lost context (no states to restore)
+            // Set cursorMovedSinceReset so next word uses AX API for spell checking
+            cursorMovedSinceReset = true
+            logCallback?("  → Set cursorMovedSinceReset=true (engine lost context)")
             return
         }
         
@@ -2418,7 +2444,7 @@ class VNEngine {
         willTempOffEngine = false
         cursorMovedSinceReset = false  // Reset cursor moved flag
     }
-    
+
     /// Reset engine with cursor movement flag set
     /// This indicates that user moved cursor (via mouse/arrow keys) and may be editing
     /// in the middle of an existing word. Restore logic will be skipped in this case.
@@ -2629,65 +2655,103 @@ extension VNEngine {
         // Check spelling AFTER macro check (for restore if wrong spelling feature)
         // Only run if BOTH spell check AND restore if wrong spelling are enabled
         // AND no macro was found above
-        // IMPORTANT: Skip restore if cursor was moved since reset (user may be editing
-        // middle of an existing word, and engine only sees partial word)
+        // Also skip if spelling is temporarily off via toolbar
         // Trigger restore on space, comma, or period
-        if isRestoreTrigger && vCheckSpelling == 1 && vRestoreIfWrongSpelling == 1 && !cursorMovedSinceReset {
-            // Re-check spelling with full vowel check
-            if !tempDisableKey {
-                checkSpelling(forceCheckVowel: true)
-            }
-            
-            // If word is invalid (tempDisableKey = true), restore to original keystrokes
-            if tempDisableKey {
-                logCallback?("processWordBreak: Word invalid, attempting restore...")
-                if checkRestoreIfWrongSpelling(handleCode: vRestore) {
-                    logCallback?("processWordBreak: Restore successful")
-                    
-                    // IMPORTANT: After restore, check if restored word is a macro
-                    // Example: "intẻ" (invalid) restored to "inter" which may be a macro
-                    if shouldUseMacro() {
-                        // Rebuild macroKey from keyStates (original keystrokes)
-                        var restoredMacroKey = [UInt32]()
-                        for i in 0..<Int(stateIndex) {
-                            restoredMacroKey.append(keyStates[i])
-                        }
-                        
-                        if !restoredMacroKey.isEmpty {
-                            // Save the original backspace count from restore operation
-                            // This is the number of characters on screen (transformed text like "intẻ")
-                            let originalBackspaceCount = hookState.backspaceCount
-                            
-                            hookState.macroKey = restoredMacroKey
-                            logCallback?("processWordBreak: After restore, checking macro with keyStates (count=\(restoredMacroKey.count))")
-                            
-                            if findAndReplaceMacro() {
-                                // Macro found - need to fix backspaceCount
-                                // findAndReplaceMacro sets backspaceCount = macroKey.count (original keystrokes)
-                                // But text on screen is transformed text, so we need original backspaceCount
-                                hookState.backspaceCount = originalBackspaceCount
-                                logCallback?("processWordBreak: Macro found after restore! Using backspaceCount=\(originalBackspaceCount)")
-                                
-                                let result = convertHookStateToResult(hookState, currentKeyCode: nil, currentCharacter: character, isUppercase: false)
-                                reset()
-                                return result
-                            }
-                        }
-                    }
-                    
-                    // No macro found, return restore result
-                    logCallback?("processWordBreak: No macro, returning restore result")
-                    let result = convertHookStateToResult(hookState, currentKeyCode: nil, currentCharacter: character, isUppercase: false)
-                    // Reset after restore - use reset() instead of just startNewSession()
-                    // This clears typingStates to prevent old words from appearing when backspacing
-                    // Without this, backspacing after restore would bring back old words from typingStates
-                    reset()
-                    spaceCount = 1
-                    return result
+        if isRestoreTrigger && vCheckSpelling == 1 && vRestoreIfWrongSpelling == 1 && vTempOffSpelling == 0 {
+            // When cursor was moved (app switch, click, or editing restored word),
+            // use Accessibility API to get the ACTUAL word before cursor.
+            // This handles cases where user backspaced into a previous word and engine lost context.
+            var wordToCheck = getCurrentWord()
+            var useAXWord = false
+            var axUnavailable = false
+
+            if cursorMovedSinceReset {
+                // Only call Accessibility API when spell check is enabled (avoid overhead)
+                if let axWord = getWordBeforeCursorCallback?(), !axWord.isEmpty {
+                    logCallback?("processWordBreak: Using AX word '\(axWord)' instead of buffer '\(wordToCheck)'")
+                    wordToCheck = axWord
+                    useAXWord = true
+                } else {
+                    // AX not available or returned empty - skip restore to be safe
+                    // User might be editing mid-word where engine lost context
+                    logCallback?("processWordBreak: AX unavailable, skipping restore (may be mid-word editing)")
+                    axUnavailable = true
                 }
             }
-        } else if cursorMovedSinceReset && isRestoreTrigger {
-            logCallback?("processWordBreak: Skip restore because cursor was moved (editing mid-word)")
+
+            // Skip restore if AX was needed but unavailable (cursor moved but can't verify word)
+            if axUnavailable {
+                logCallback?("processWordBreak: Skipping restore due to AX unavailable with cursorMovedSinceReset")
+            } else {
+                // Check if the word is valid Vietnamese
+                let isValidWord = checkWordSpelling(word: wordToCheck)
+                logCallback?("processWordBreak: wordToCheck='\(wordToCheck)', isValid=\(isValidWord), useAXWord=\(useAXWord)")
+
+                // If AX word is valid, skip restore (user typed correct word even if buffer is partial)
+                if useAXWord && isValidWord {
+                    logCallback?("processWordBreak: AX word '\(wordToCheck)' is valid, skipping restore")
+                } else if !isValidWord {
+                    // Word is invalid - need to restore
+                    if useAXWord {
+                        // AX word is invalid - force restore regardless of buffer validity
+                        // The buffer might be valid as a standalone word (e.g., "ẻn")
+                        // but the full word on screen (e.g., "hiẻn") is invalid
+                        tempDisableKey = true
+                        logCallback?("processWordBreak: AX word invalid, forcing tempDisableKey=true for restore")
+                    } else if !tempDisableKey {
+                        // Not using AX - re-check spelling with full vowel check (updates tempDisableKey)
+                        checkSpelling(forceCheckVowel: true)
+                    }
+
+                    if tempDisableKey {
+                        logCallback?("processWordBreak: Word invalid, attempting restore...")
+                        if checkRestoreIfWrongSpelling(handleCode: vRestore) {
+                            logCallback?("processWordBreak: Restore successful")
+
+                            // IMPORTANT: After restore, check if restored word is a macro
+                            // Example: "intẻ" (invalid) restored to "inter" which may be a macro
+                            if shouldUseMacro() {
+                                // Rebuild macroKey from keyStates (original keystrokes)
+                                var restoredMacroKey = [UInt32]()
+                                for i in 0..<Int(stateIndex) {
+                                    restoredMacroKey.append(keyStates[i])
+                                }
+
+                                if !restoredMacroKey.isEmpty {
+                                    // Save the original backspace count from restore operation
+                                    // This is the number of characters on screen (transformed text like "intẻ")
+                                    let originalBackspaceCount = hookState.backspaceCount
+
+                                    hookState.macroKey = restoredMacroKey
+                                    logCallback?("processWordBreak: After restore, checking macro with keyStates (count=\(restoredMacroKey.count))")
+
+                                    if findAndReplaceMacro() {
+                                        // Macro found - need to fix backspaceCount
+                                        // findAndReplaceMacro sets backspaceCount = macroKey.count (original keystrokes)
+                                        // But text on screen is transformed text, so we need original backspaceCount
+                                        hookState.backspaceCount = originalBackspaceCount
+                                        logCallback?("processWordBreak: Macro found after restore! Using backspaceCount=\(originalBackspaceCount)")
+
+                                        let result = convertHookStateToResult(hookState, currentKeyCode: nil, currentCharacter: character, isUppercase: false)
+                                        reset()
+                                        return result
+                                    }
+                                }
+                            }
+
+                            // No macro found, return restore result
+                            logCallback?("processWordBreak: No macro, returning restore result")
+                            let result = convertHookStateToResult(hookState, currentKeyCode: nil, currentCharacter: character, isUppercase: false)
+                            // Reset after restore - use reset() instead of just startNewSession()
+                            // This clears typingStates to prevent old words from appearing when backspacing
+                            // Without this, backspacing after restore would bring back old words from typingStates
+                            reset()
+                            spaceCount = 1
+                            return result
+                        }
+                    }
+                }
+            }
         }
         
         // For non-space word break characters, add them to macroKey for building macros
@@ -2767,11 +2831,11 @@ extension VNEngine {
         // Reset spell checking to original setting
         vCheckSpelling = useSpellCheckingBefore ? 1 : 0
         willTempOffEngine = false
-        
+
         // Reset cursor moved flag after word break
         // This allows restore logic to work normally for the next word
         cursorMovedSinceReset = false
-        
+
         return ProcessResult() // Empty result, no consumption
     }
     

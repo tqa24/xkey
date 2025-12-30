@@ -36,7 +36,7 @@ struct AdvancedSection: View {
                         Toggle("Tự động viết hoa chữ đầu câu", isOn: $viewModel.preferences.upperCaseFirstChar)
                         Toggle("Cho phép phụ âm Z, F, W, J", isOn: $viewModel.preferences.allowConsonantZFWJ)
 
-                        Toggle("Kiểm tra chính tả (Thử nghiệm)", isOn: $viewModel.preferences.spellCheckEnabled)
+                        Toggle("Kiểm tra chính tả và tự động khôi phục (Thử nghiệm)", isOn: $viewModel.preferences.spellCheckEnabled)
                             .onChange(of: viewModel.preferences.spellCheckEnabled) { newValue in
                                 if newValue {
                                     // Auto-load dictionary if available
@@ -70,7 +70,7 @@ struct AdvancedSection: View {
                                         Toggle("Khôi phục ngay lập tức", isOn: $viewModel.preferences.instantRestoreOnWrongSpelling)
                                             .padding(.leading, 40)
                                         
-                                        Text("Nếu bật: Restore ngay khi thêm dấu không hợp lệ, có thể sẽ gây lỗi từ Tiếng Việt hợp lệ không mong muốn. Nếu tắt: Chờ nhấn Space để restore.")
+                                        Text("Nếu bật: Restore ngay khi thêm dấu không hợp lệ, có thể sẽ gây lỗi từ Tiếng Việt hợp lệ không mong muốn. Nếu tắt: Chờ nhấn Space để restore sẽ chính xác hơn.")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                             .padding(.leading, 40)
@@ -159,22 +159,40 @@ struct AdvancedSection: View {
                     }
                 }
                 
-                SettingsGroup(title: "Tạm tắt") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Toggle("Tạm tắt chính tả bằng phím Ctrl", isOn: $viewModel.preferences.tempOffSpellingEnabled)
-                            
-                            Text("Giữ Ctrl khi gõ để tạm thời tắt kiểm tra chính tả")
+                SettingsGroup(title: "Công cụ điều khiển") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Main toggle to enable toolbar
+                        Toggle("Bật thanh công cụ điều khiển XKey", isOn: $viewModel.preferences.tempOffToolbarEnabled)
+
+                        // Description
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Thanh công cụ nổi cho phép tạm thời tắt kiểm tra chính tả hoặc bộ gõ Tiếng Việt ngay tại vị trí con trỏ.")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Toggle("Tạm tắt gõ tiếng Việt bằng phím Option", isOn: $viewModel.preferences.tempOffEngineEnabled)
-                            
-                            Text("Giữ Option (⌥) khi gõ để tạm thời tắt bộ gõ")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+
+                            // Info box with usage instructions
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "keyboard")
+                                        .foregroundColor(.blue)
+                                    Text("Phím tắt: ⌘⌥T")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+
+                                Text("• Nhấn ⌘⌥T để hiện/ẩn thanh công cụ tại con trỏ")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("• Bấm vào nút trên thanh công cụ để bật/tắt tính năng")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Text("• Bấm phím tắt Ctrl/Option để bật/tắt tính năng")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(10)
+                            .background(Color.blue.opacity(0.05))
+                            .cornerRadius(8)
                         }
                     }
                 }

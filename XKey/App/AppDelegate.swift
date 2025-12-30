@@ -38,6 +38,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var inputSourceManager: InputSourceManager?
     private var switchXKeyHotkeyMonitor: Any?
     private var switchXKeyGlobalHotkeyMonitor: Any?
+    private var tempOffToolbarHotkeyMonitor: Any?
+    private var tempOffToolbarGlobalHotkeyMonitor: Any?
+    private var focusObserver: AXObserver?
+    private var lastFocusedElement: AXUIElement?
     private var updaterController: SPUStandardUpdaterController?
     private var sparkleUpdateDelegate: SparkleUpdateDelegate?
 
@@ -116,6 +120,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup input source manager
         setupInputSourceManager()
 
+        // Setup temp off toolbar
+        setupTempOffToolbar()
+
         // Setup Sparkle auto-update
         setupSparkleUpdater()
 
@@ -147,6 +154,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if let monitor = switchXKeyGlobalHotkeyMonitor {
             NSEvent.removeMonitor(monitor)
+        }
+
+        // Remove temp off toolbar hotkey monitors
+        if let monitor = tempOffToolbarHotkeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        if let monitor = tempOffToolbarGlobalHotkeyMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+
+        // Stop focus observer and timer
+        focusCheckTimer?.invalidate()
+        focusCheckTimer = nil
+        if let observer = focusObserver {
+            CFRunLoopRemoveSource(
+                CFRunLoopGetCurrent(),
+                AXObserverGetRunLoopSource(observer),
+                .defaultMode
+            )
+            focusObserver = nil
         }
 
         // Remove app switch observer
@@ -399,8 +426,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         keyboardHandler?.restoreIfWrongSpelling = preferences.restoreIfWrongSpelling
         keyboardHandler?.allowConsonantZFWJ = preferences.allowConsonantZFWJ
         keyboardHandler?.freeMarkEnabled = preferences.freeMarkEnabled
-        keyboardHandler?.tempOffSpellingEnabled = preferences.tempOffSpellingEnabled
-        keyboardHandler?.tempOffEngineEnabled = preferences.tempOffEngineEnabled
         
         // Apply macro settings
         keyboardHandler?.macroEnabled = preferences.macroEnabled
@@ -1116,6 +1141,218 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             debugWindowController?.logEvent("  ℹ️ Dictionary not found. User can download from Settings > Spell Checking")
         }
+    }
+
+    // MARK: - Temp Off Toolbar
+
+    private func setupTempOffToolbar() {
+        let preferences = SharedSettings.shared.loadPreferences()
+
+        // Only setup if toolbar is enabled
+        guard preferences.tempOffToolbarEnabled else {
+            debugWindowController?.logEvent("  ⏹️ Temp off toolbar disabled")
+            return
+        }
+
+        // Setup toolbar state change callback
+        TempOffToolbarController.shared.onStateChange = { [weak self] spellingOff, engineOff in
+            guard let self = self else { return }
+
+            // Update engine temp off states
+            self.keyboardHandler?.engine.vTempOffSpelling = spellingOff ? 1 : 0
+            self.keyboardHandler?.engine.vTempOffEngine = engineOff ? 1 : 0
+
+            self.debugWindowController?.logEvent("🔧 Toolbar state changed: spelling=\(spellingOff ? "OFF" : "ON"), engine=\(engineOff ? "OFF" : "ON")")
+        }
+
+        // Setup hotkey: Cmd+Option+T to toggle toolbar
+        setupTempOffToolbarHotkey()
+
+        // Setup focus change monitoring to auto-show toolbar
+        setupFocusChangeMonitoring()
+
+        debugWindowController?.logEvent("  ✅ Temp off toolbar initialized")
+    }
+
+    /// Setup monitoring for focus changes to auto-show toolbar when focusing text fields
+    private func setupFocusChangeMonitoring() {
+        // Use NSWorkspace notification to detect app activation
+        // Then check if focused element is a text field
+        NotificationCenter.default.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.checkAndShowToolbarForFocusedElement()
+        }
+
+        // Also monitor mouse clicks to detect focus changes within same app
+        // This is already handled by mouseClickMonitor, we just need to hook into it
+        // We'll use a timer to periodically check focus (more reliable)
+        setupFocusCheckTimer()
+
+        debugWindowController?.logEvent("  ✅ Focus change monitoring enabled")
+    }
+
+    private var focusCheckTimer: Timer?
+
+    private func setupFocusCheckTimer() {
+        focusCheckTimer?.invalidate()
+        focusCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkAndShowToolbarForFocusedElement()
+        }
+    }
+
+    /// Check if currently focused element is a text field and show toolbar
+    private func checkAndShowToolbarForFocusedElement() {
+        // Only proceed if toolbar is enabled
+        guard SharedSettings.shared.tempOffToolbarEnabled else { return }
+
+        let systemWide = AXUIElementCreateSystemWide()
+
+        // Get focused element
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focusedElement = focusedRef else {
+            // No focused element - hide toolbar
+            if TempOffToolbarController.shared.isVisible {
+                TempOffToolbarController.shared.hide()
+            }
+            return
+        }
+
+        let axElement = focusedElement as! AXUIElement
+
+        // Check if it's the same element as before
+        if let lastElement = lastFocusedElement, CFEqual(lastElement, axElement) {
+            // Same element, just update position if visible
+            if TempOffToolbarController.shared.isVisible {
+                TempOffToolbarController.shared.updatePosition()
+            }
+            return
+        }
+
+        // New focused element
+        lastFocusedElement = axElement
+
+        // Check if it's a text input element
+        if isTextInputElement(axElement) {
+            // Show toolbar near cursor
+            TempOffToolbarController.shared.show()
+        } else {
+            // Not a text field - hide toolbar
+            TempOffToolbarController.shared.hide()
+        }
+    }
+
+    /// Check if an AX element is a text input field
+    private func isTextInputElement(_ element: AXUIElement) -> Bool {
+        // Get role
+        var roleRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+              let role = roleRef as? String else {
+            return false
+        }
+
+        // Text input roles - only these are true text inputs
+        let textRoles = [
+            "AXTextField",
+            "AXTextArea",
+            "AXComboBox",
+            "AXSearchField"
+        ]
+
+        if textRoles.contains(role) {
+            return true
+        }
+
+        // Check subrole for web content text fields
+        var subroleRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+           let subrole = subroleRef as? String {
+            // Only text-related subroles
+            if subrole == "AXSearchField" || subrole == "AXSecureTextField" {
+                return true
+            }
+        }
+
+        // For contenteditable web elements (role=AXGroup or AXWebArea),
+        // check if RoleDescription contains text input keywords
+        if role == "AXGroup" || role == "AXWebArea" {
+            var roleDescRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXRoleDescriptionAttribute as CFString, &roleDescRef) == .success,
+               let roleDesc = roleDescRef as? String {
+                let lowerDesc = roleDesc.lowercased()
+                if lowerDesc.contains("field") || lowerDesc.contains("editor") || lowerDesc.contains("input") {
+                    return true
+                }
+            }
+        }
+
+        // Do NOT use AXSelectedTextRange as fallback - links and other elements may have it
+        return false
+    }
+
+    private func setupTempOffToolbarHotkey() {
+        // Remove existing monitors
+        if let monitor = tempOffToolbarHotkeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            tempOffToolbarHotkeyMonitor = nil
+        }
+        if let monitor = tempOffToolbarGlobalHotkeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            tempOffToolbarGlobalHotkeyMonitor = nil
+        }
+
+        // Hotkey: Cmd+Option+T to toggle toolbar
+        let keyCode: UInt16 = 0x11 // T key
+
+        // Helper to check modifiers (Cmd+Option only)
+        let checkModifiers: (NSEvent) -> Bool = { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let significantFlags = NSEvent.ModifierFlags([.command, .control, .option, .shift])
+            let actualFlags = flags.intersection(significantFlags)
+            return actualFlags == [.command, .option]
+        }
+
+        // Global monitor
+        tempOffToolbarGlobalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == keyCode && checkModifiers(event) {
+                DispatchQueue.main.async {
+                    TempOffToolbarController.shared.toggle()
+                    self?.debugWindowController?.logEvent("🔧 Temp off toolbar toggled via hotkey (Cmd+Option+T)")
+                }
+            }
+        }
+
+        // Local monitor
+        tempOffToolbarHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == keyCode && checkModifiers(event) {
+                DispatchQueue.main.async {
+                    TempOffToolbarController.shared.toggle()
+                    self?.debugWindowController?.logEvent("🔧 Temp off toolbar toggled via hotkey (Cmd+Option+T)")
+                }
+                return nil // Consume event
+            }
+            return event
+        }
+
+        debugWindowController?.logEvent("  ✅ Temp off toolbar hotkey: Cmd+Option+T")
+    }
+
+    /// Show temp off toolbar programmatically
+    func showTempOffToolbar() {
+        TempOffToolbarController.shared.show()
+    }
+
+    /// Hide temp off toolbar programmatically
+    func hideTempOffToolbar() {
+        TempOffToolbarController.shared.hide()
+    }
+
+    /// Toggle temp off toolbar programmatically
+    func toggleTempOffToolbar() {
+        TempOffToolbarController.shared.toggle()
     }
 }
 

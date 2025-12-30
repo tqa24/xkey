@@ -627,7 +627,14 @@ class VietnameseData {
                keyCode == VietnameseData.KEY_7 || keyCode == VietnameseData.KEY_8 ||
                keyCode == VietnameseData.KEY_9 || keyCode == VietnameseData.KEY_0
     }
-    
+
+    /// Check if keyCode is a Vietnamese vowel (a, e, i, o, u, y)
+    func isVowelKey(_ keyCode: UInt16) -> Bool {
+        return keyCode == VietnameseData.KEY_A || keyCode == VietnameseData.KEY_E ||
+               keyCode == VietnameseData.KEY_I || keyCode == VietnameseData.KEY_O ||
+               keyCode == VietnameseData.KEY_U || keyCode == VietnameseData.KEY_Y
+    }
+
     func isLetter(_ keyCode: UInt16) -> Bool {
         return keyCode == VietnameseData.KEY_A || keyCode == VietnameseData.KEY_B ||
                keyCode == VietnameseData.KEY_C || keyCode == VietnameseData.KEY_D ||

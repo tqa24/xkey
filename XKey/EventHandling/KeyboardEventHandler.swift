@@ -75,14 +75,6 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
         didSet { updateEngineSettings() }
     }
     
-    @Published var tempOffSpellingEnabled: Bool = false {
-        didSet { updateEngineSettings() }
-    }
-    
-    @Published var tempOffEngineEnabled: Bool = false {
-        didSet { updateEngineSettings() }
-    }
-    
     // Macro settings
     @Published var macroEnabled: Bool = false {
         didSet { updateEngineSettings() }
@@ -128,7 +120,13 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             guard let self = self, self.verboseEngineLogging else { return }
             self.debugLogCallback?("💉 Injector: \(message)")
         }
-        
+
+        // Set up callback for engine to get word before cursor via Accessibility API
+        // This is used for spell checking when engine loses context (e.g., after backspace)
+        self.engine.getWordBeforeCursorCallback = { [weak self] in
+            return self?.injector.getTextBeforeCursor()
+        }
+
         // Share managers with VNEngine
         VNEngine.setSharedMacroManager(macroManager)
         VNEngine.setSharedSmartSwitchManager(smartSwitchManager)
@@ -242,22 +240,6 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return false
         }
 
-        // Handle Ctrl key for temp off spelling
-        if event.isControlPressed && tempOffSpellingEnabled {
-            // Temporarily disable spell checking when Ctrl is pressed
-            engine.vTempOffSpelling = 1
-        } else {
-            engine.vTempOffSpelling = 0
-        }
-
-        // Handle Option key for temp off engine
-        if event.isOptionPressed && tempOffEngineEnabled {
-            // Temporarily disable engine when Option is pressed
-            engine.reset()
-            injector.markNewSession(preserveMidSentence: true)  // Preserve mid-sentence state
-            return false
-        }
-
         // Don't process if Command is pressed
         if event.isCommandPressed {
             engine.reset()
@@ -272,17 +254,17 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return false
         }
 
-        // Don't process if Option is pressed and tempOffEngine is NOT enabled
-        if event.isOptionPressed && !tempOffEngineEnabled {
+        // Don't process if Option is pressed (used for special characters like ø, å, etc.)
+        if event.isOptionPressed {
             engine.reset()
-            injector.markNewSession(preserveMidSentence: true)  // Preserve mid-sentence state
+            injector.markNewSession(preserveMidSentence: true)
             return false
         }
 
-        // If only Ctrl is pressed and tempOffSpelling is NOT enabled, skip processing
-        if event.isControlPressed && !tempOffSpellingEnabled {
+        // Don't process if Ctrl is pressed (used for control shortcuts)
+        if event.isControlPressed {
             engine.reset()
-            injector.markNewSession(preserveMidSentence: true)  // Preserve mid-sentence state
+            injector.markNewSession(preserveMidSentence: true)
             return false
         }
 
@@ -590,8 +572,6 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
 
         settings.allowConsonantZFWJ = allowConsonantZFWJ
         settings.freeMarking = freeMarkEnabled
-        settings.tempOffSpellingEnabled = tempOffSpellingEnabled
-        settings.tempOffEngineEnabled = tempOffEngineEnabled
         
         // Macro settings
         settings.macroEnabled = macroEnabled

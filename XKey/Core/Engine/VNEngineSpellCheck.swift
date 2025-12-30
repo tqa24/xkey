@@ -69,6 +69,68 @@ extension VNEngine {
         return nlValid
     }
 
+    /// Validate if a given word string is a valid Vietnamese word
+    /// This is used for checking words from Accessibility API
+    func checkWordSpelling(word: String) -> Bool {
+        guard SharedSettings.shared.spellCheckEnabled else {
+            logCallback?("📖 checkWordSpelling: DISABLED (spellCheckEnabled=false)")
+            return true // Spell checking disabled
+        }
+
+        guard !word.isEmpty else {
+            logCallback?("📖 checkWordSpelling: SKIPPED (empty word)")
+            return true // Empty word is considered valid
+        }
+
+        // When vAllowConsonantZFWJ is enabled, words containing Z, F, W, J consonants
+        // should be considered valid without dictionary check
+        if vAllowConsonantZFWJ == 1 {
+            let lowercaseWord = word.lowercased()
+            let specialConsonants: [Character] = ["z", "f", "w", "j"]
+
+            if let firstChar = lowercaseWord.first, specialConsonants.contains(firstChar) {
+                logCallback?("📖 checkWordSpelling: SKIPPED (vAllowConsonantZFWJ=1, starts with '\(firstChar)')")
+                return true
+            }
+
+            for consonant in specialConsonants {
+                if lowercaseWord.contains(consonant) {
+                    logCallback?("📖 checkWordSpelling: SKIPPED (vAllowConsonantZFWJ=1, contains '\(consonant)')")
+                    return true
+                }
+            }
+        }
+
+        // Check user dictionary
+        if SharedSettings.shared.isWordInUserDictionary(word) {
+            logCallback?("📖 checkWordSpelling: FOUND in User Dictionary, word='\(word)'")
+            return true
+        }
+
+        // Check against hunspell dictionary
+        let style: VNDictionaryManager.DictionaryStyle = SharedSettings.shared.modernStyle ? .dauMoi : .dauCu
+        let styleName = style == .dauCu ? "Dấu cũ" : "Dấu mới"
+
+        let isDictionaryLoaded = VNDictionaryManager.shared.isDictionaryLoaded(style: style)
+        if !isDictionaryLoaded {
+            logCallback?("📖 checkWordSpelling: NOT LOADED (style=\(styleName))")
+            return true
+        }
+
+        let isValid = VNDictionaryManager.shared.isValidWord(word, style: style)
+        logCallback?("📖 checkWordSpelling: word='\(word)', style=\(styleName), valid=\(isValid)")
+
+        if isValid {
+            return true
+        }
+
+        // Fallback to Natural Language framework
+        let nlValid = isValidWordUsingNaturalLanguage(word)
+        logCallback?("📖 checkWordSpelling NL: word='\(word)', valid=\(nlValid)")
+
+        return nlValid
+    }
+
     /// Check if word is valid using macOS Natural Language framework
     /// This serves as a fallback when word is not found in the custom dictionary
     private func isValidWordUsingNaturalLanguage(_ word: String) -> Bool {

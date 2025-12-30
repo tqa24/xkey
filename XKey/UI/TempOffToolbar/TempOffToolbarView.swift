@@ -1,0 +1,112 @@
+//
+//  TempOffToolbarView.swift
+//  XKey
+//
+//  SwiftUI view for the floating temp off toolbar
+//
+
+import SwiftUI
+
+struct TempOffToolbarView: View {
+    @ObservedObject var viewModel: TempOffToolbarViewModel
+
+    var body: some View {
+        HStack(spacing: 4) {
+            // Spelling toggle button (icon only)
+            if viewModel.showSpellingButton {
+                MacOSStyleButton(
+                    content: AnyView(
+                        Image(systemName: "textformat.abc")
+                            .font(.system(size: 11, weight: .medium))
+                    ),
+                    tooltip: "Chính tả",
+                    isActive: !viewModel.isSpellingTempOff,
+                    action: { viewModel.toggleSpelling() }
+                )
+            }
+
+            // Engine toggle button (VI/EN text)
+            if viewModel.showEngineButton {
+                MacOSStyleButton(
+                    content: AnyView(
+                        Text(viewModel.isEngineTempOff ? "EN" : "VI")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    ),
+                    tooltip: viewModel.isEngineTempOff ? "English" : "Tiếng Việt",
+                    isActive: !viewModel.isEngineTempOff,
+                    action: { viewModel.toggleEngine() }
+                )
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 3)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(.white.opacity(0.2), lineWidth: 0.5)
+        )
+    }
+}
+
+// MARK: - macOS Style Button (Fn popup style)
+
+private struct MacOSStyleButton: View {
+    let content: AnyView
+    let tooltip: String
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            content
+                .foregroundColor(isActive ? .white : Color(nsColor: .secondaryLabelColor))
+                .frame(width: 26, height: 26)
+                .background(
+                    Circle()
+                        .fill(buttonBackgroundColor)
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(buttonBorderColor, lineWidth: isActive ? 0 : 0.5)
+                )
+                .scaleEffect(isHovered ? 1.05 : 1.0)
+                .animation(.easeInOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+
+    private var buttonBackgroundColor: Color {
+        if isActive {
+            return Color(nsColor: .systemGreen)
+        } else if isHovered {
+            return Color(nsColor: .quaternaryLabelColor)
+        } else {
+            return Color(nsColor: .tertiaryLabelColor).opacity(0.3)
+        }
+    }
+
+    private var buttonBorderColor: Color {
+        if isActive {
+            return .clear
+        } else {
+            return Color(nsColor: .separatorColor)
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    TempOffToolbarView(viewModel: TempOffToolbarViewModel())
+        .frame(width: 100, height: 50)
+}
