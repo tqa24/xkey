@@ -192,10 +192,8 @@ class InputSourcesViewModel: ObservableObject {
     private var notificationObserver: Any?
 
     init() {
-        manager = InputSourceManager()
-        manager?.debugLogCallback = { message in
-            logInfo(message, source: "InputSourceManager")
-        }
+        // Use shared singleton - same instance as AppDelegate
+        manager = InputSourceManager.shared
 
         // Listen for input source changes
         notificationObserver = NotificationCenter.default.addObserver(

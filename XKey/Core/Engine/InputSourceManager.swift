@@ -42,6 +42,11 @@ struct InputSourceConfig: Codable {
 /// Manager for tracking and responding to Input Source changes
 class InputSourceManager {
 
+    // MARK: - Singleton
+    
+    /// Shared instance for app-wide use
+    static let shared = InputSourceManager()
+
     // MARK: - Properties
 
     /// Callback when input source changes
@@ -98,7 +103,6 @@ class InputSourceManager {
     @objc private func inputSourceDidChange(_ notification: Notification) {
         // Check if we should ignore this change (hotkey was just pressed)
         if let ignoreUntil = ignoreInputSourceChangesUntil, Date() < ignoreUntil {
-            debugLogCallback?("⏭️ Ignoring input source change (hotkey was just used)")
             // Still update current source for tracking
             if let newSource = Self.getCurrentInputSource() {
                 currentInputSource = newSource
@@ -114,6 +118,7 @@ class InputSourceManager {
             return
         }
 
+        let previousSource = currentInputSource?.displayName ?? "none"
         currentInputSource = newSource
 
         // For XKey/OpenKey itself - always enable Vietnamese
@@ -124,6 +129,8 @@ class InputSourceManager {
             // Check if XKey should be enabled for this input source
             shouldEnable = config.isXKeyEnabled(for: newSource.id)
         }
+
+        debugLogCallback?("🌐 Input Source: \(previousSource) → \(newSource.displayName) [XKey: \(shouldEnable ? "ON" : "OFF")]")
 
         // Notify delegate
         onInputSourceChanged?(newSource, shouldEnable)
@@ -158,6 +165,7 @@ class InputSourceManager {
         // If this is the current input source, trigger the change immediately
         if currentInputSource?.id == inputSourceID {
             if let source = currentInputSource {
+                debugLogCallback?("🔧 Input Source '\(source.displayName)' → XKey: \(enabled ? "ON" : "OFF") (applied now)")
                 onInputSourceChanged?(source, enabled)
 
                 // Also post notification for UI

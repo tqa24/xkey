@@ -647,6 +647,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         debugWindowController?.logEvent("  ✅ Read Word hotkey: Cmd+Shift+R")
     }
     
+    // State tracking for modifier-only switch XKey hotkey
+    private var switchXKeyModifierState: (targetReached: Bool, hasTriggered: Bool) = (false, false)
+    private var switchXKeyFlagsMonitor: Any?
+    private var switchXKeyGlobalFlagsMonitor: Any?
+    
     private func setupSwitchXKeyHotkey(with hotkey: Hotkey?) {
         // Remove existing monitors
         if let monitor = switchXKeyHotkeyMonitor {
@@ -657,6 +662,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(monitor)
             switchXKeyGlobalHotkeyMonitor = nil
         }
+        if let monitor = switchXKeyFlagsMonitor {
+            NSEvent.removeMonitor(monitor)
+            switchXKeyFlagsMonitor = nil
+        }
+        if let monitor = switchXKeyGlobalFlagsMonitor {
+            NSEvent.removeMonitor(monitor)
+            switchXKeyGlobalFlagsMonitor = nil
+        }
+        
+        // Reset modifier state
+        switchXKeyModifierState = (false, false)
         
         guard let hotkey = hotkey else {
             debugWindowController?.logEvent("  ⏹️ Switch XKey hotkey disabled")
@@ -681,40 +697,113 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return actualFlags == requiredFlags
         }
         
-        // Global monitor - catches hotkey in ALL apps
-        switchXKeyGlobalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == keyCode && checkModifiers(event) {
-                DispatchQueue.main.async {
-                    // Check state BEFORE toggle
-                    let wasXKey = InputSourceSwitcher.shared.isXKeyActive
-                    let action = wasXKey ? "XKey → ABC" : "ABC → XKey"
+        // Perform the actual toggle
+        let performToggle: () -> Void = { [weak self] in
+            DispatchQueue.main.async {
+                // Check state BEFORE toggle
+                let wasXKey = InputSourceSwitcher.shared.isXKeyActive
+                let action = wasXKey ? "XKey → ABC" : "ABC → XKey"
 
-                    // Perform toggle
-                    let success = InputSourceSwitcher.shared.toggleXKey()
-                    self?.debugWindowController?.logEvent("🔄 Toggle input source via hotkey (\(hotkey.displayString)) [\(action)]: \(success ? "success" : "failed")")
-                }
+                // Perform toggle
+                let success = InputSourceSwitcher.shared.toggleXKey()
+                self?.debugWindowController?.logEvent("🔄 Toggle input source via hotkey (\(hotkey.displayString)) [\(action)]: \(success ? "success" : "failed")")
             }
-        }
-
-        // Local monitor - catches hotkey when XKey app is focused
-        switchXKeyHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == keyCode && checkModifiers(event) {
-                DispatchQueue.main.async {
-                    // Check state BEFORE toggle
-                    let wasXKey = InputSourceSwitcher.shared.isXKeyActive
-                    let action = wasXKey ? "XKey → ABC" : "ABC → XKey"
-
-                    // Perform toggle
-                    let success = InputSourceSwitcher.shared.toggleXKey()
-                    self?.debugWindowController?.logEvent("🔄 Toggle input source via hotkey (\(hotkey.displayString)) [\(action)]: \(success ? "success" : "failed")")
-                }
-                // Return nil to consume the event
-                return nil
-            }
-            return event
         }
         
-        debugWindowController?.logEvent("  ✅ Switch XKey hotkey: \(hotkey.displayString)")
+        // Handle modifier-only hotkey (e.g., Ctrl+Shift)
+        if hotkey.isModifierOnly {
+            // Helper to handle flagsChanged events
+            let handleFlagsChanged: (NSEvent) -> Void = { [weak self] event in
+                guard let self = self else { return }
+                
+                let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                var requiredFlags: NSEvent.ModifierFlags = []
+                
+                if hotkey.modifiers.contains(.command) { requiredFlags.insert(.command) }
+                if hotkey.modifiers.contains(.control) { requiredFlags.insert(.control) }
+                if hotkey.modifiers.contains(.option) { requiredFlags.insert(.option) }
+                if hotkey.modifiers.contains(.shift) { requiredFlags.insert(.shift) }
+                if hotkey.modifiers.contains(.function) { requiredFlags.insert(.function) }
+                
+                // Check if all required modifiers are currently pressed
+                let significantFlags = NSEvent.ModifierFlags([.command, .control, .option, .shift, .function])
+                let actualFlags = flags.intersection(significantFlags)
+                let hasAllRequiredModifiers = actualFlags == requiredFlags
+                
+                if hasAllRequiredModifiers {
+                    // All required modifiers are pressed
+                    if !self.switchXKeyModifierState.targetReached {
+                        self.switchXKeyModifierState.targetReached = true
+                        self.switchXKeyModifierState.hasTriggered = false
+                        self.debugWindowController?.logEvent("  → Switch XKey target modifiers REACHED: \(hotkey.displayString)")
+                    }
+                } else {
+                    // Modifiers changed (released)
+                    if self.switchXKeyModifierState.targetReached && !self.switchXKeyModifierState.hasTriggered {
+                        // Was holding target modifiers, now released - TRIGGER!
+                        self.switchXKeyModifierState.hasTriggered = true
+                        self.debugWindowController?.logEvent("  → SWITCH XKEY MODIFIER-ONLY HOTKEY TRIGGERED on release: \(hotkey.displayString)")
+                        performToggle()
+                    }
+                    // Reset state
+                    self.switchXKeyModifierState.targetReached = false
+                }
+            }
+            
+            // Global monitor for flagsChanged
+            switchXKeyGlobalFlagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { event in
+                handleFlagsChanged(event)
+            }
+            
+            // Local monitor for flagsChanged
+            switchXKeyFlagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                handleFlagsChanged(event)
+                return event  // Pass through flagsChanged events
+            }
+            
+            // Also need keyDown monitors to cancel modifier-only hotkey if a key is pressed
+            switchXKeyGlobalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] _ in
+                // If user presses any key while holding modifiers, cancel the modifier-only hotkey
+                if self?.switchXKeyModifierState.targetReached == true {
+                    self?.debugWindowController?.logEvent("  → Key pressed while holding modifiers - canceling switch XKey modifier-only hotkey")
+                    self?.switchXKeyModifierState.targetReached = false
+                    self?.switchXKeyModifierState.hasTriggered = true  // Prevent trigger on release
+                }
+            }
+            
+            switchXKeyHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                // If user presses any key while holding modifiers, cancel the modifier-only hotkey
+                if self?.switchXKeyModifierState.targetReached == true {
+                    self?.debugWindowController?.logEvent("  → Key pressed while holding modifiers - canceling switch XKey modifier-only hotkey")
+                    self?.switchXKeyModifierState.targetReached = false
+                    self?.switchXKeyModifierState.hasTriggered = true  // Prevent trigger on release
+                }
+                return event  // Pass through keyDown events
+            }
+            
+            debugWindowController?.logEvent("  ✅ Switch XKey hotkey (modifier-only): \(hotkey.displayString)")
+        } else {
+            // Regular hotkey (e.g., Cmd+Shift+V)
+            
+            // Global monitor - catches hotkey in ALL apps
+            switchXKeyGlobalHotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == keyCode && checkModifiers(event) {
+                    performToggle()
+                }
+            }
+
+            // Local monitor - catches hotkey when XKey app is focused
+            switchXKeyHotkeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == keyCode && checkModifiers(event) {
+                    performToggle()
+                    // Return nil to consume the event
+                    return nil
+                }
+                return event
+            }
+            
+            debugWindowController?.logEvent("  ✅ Switch XKey hotkey: \(hotkey.displayString)")
+        }
     }
 
     private func setupAppSwitchObserver() {
@@ -766,6 +855,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let prefs = SharedSettings.shared.loadPreferences()
         guard prefs.detectOverlayApps else { return }
 
+        // IMPORTANT: Check Input Source config first - it takes priority
+        // If current Input Source is configured as disabled, don't restore Vietnamese
+        if let currentSource = InputSourceManager.getCurrentInputSource() {
+            let inputSourceEnabled = InputSourceManager.shared.isEnabled(for: currentSource.id)
+            if !inputSourceEnabled {
+                return
+            }
+        }
+
         // Get current frontmost app
         guard let bundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier else { return }
 
@@ -781,9 +879,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             statusBarManager?.viewModel.isVietnameseEnabled = newEnabled
             handler.setVietnamese(newEnabled)
 
-            debugWindowController?.logEvent("✅ Restored '\(bundleId)' language → \(newEnabled ? "Vietnamese" : "English")")
-        } else {
-            debugWindowController?.logEvent("ℹ️ No language change needed for '\(bundleId)' (current=\(currentLanguage))")
+            debugWindowController?.logEvent("🔄 Restored '\(bundleId)' → \(newEnabled ? "Vietnamese" : "English")")
         }
     }
     
@@ -804,10 +900,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Handle Smart Switch when app changes
     private func handleSmartSwitch(notification: Notification) {
         guard let handler = keyboardHandler else { return }
-        
-        debugWindowController?.logEvent("🔍 Smart Switch check: enabled=\(handler.smartSwitchEnabled), vUseSmartSwitchKey=\(handler.engine.vUseSmartSwitchKey)")
-        
         guard handler.smartSwitchEnabled else { return }
+        
+        // IMPORTANT: Check Input Source config first - it takes priority over Smart Switch
+        // If current Input Source is configured as disabled, don't allow Smart Switch to enable Vietnamese
+        if let currentSource = InputSourceManager.getCurrentInputSource() {
+            let inputSourceEnabled = InputSourceManager.shared.isEnabled(for: currentSource.id)
+            if !inputSourceEnabled {
+                return
+            }
+        }
         
         // Get the new active app
         guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
@@ -816,12 +918,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Get current language from UI (StatusBar) - this is the source of truth
         let currentLanguage = statusBarManager?.viewModel.isVietnameseEnabled == true ? 1 : 0
         
-        debugWindowController?.logEvent("🔍 Smart Switch: bundleId=\(bundleId), currentLanguage=\(currentLanguage)")
-        
         // Check if should switch language, passing the actual current language
         let result = handler.engine.checkSmartSwitchForApp(bundleId: bundleId, currentLanguage: currentLanguage)
-        
-        debugWindowController?.logEvent("🔍 Smart Switch result: shouldSwitch=\(result.shouldSwitch), newLanguage=\(result.newLanguage)")
         
         if result.shouldSwitch {
             // Switch language
@@ -833,7 +931,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             // App is new or language hasn't changed - save current language
             handler.engine.saveAppLanguage(bundleId: bundleId, language: currentLanguage)
-            debugWindowController?.logEvent("📝 Smart Switch: Saved '\(bundleId)' → \(currentLanguage == 1 ? "Vietnamese" : "English")")
         }
     }
     
@@ -953,7 +1050,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func setupInputSourceManager() {
-        inputSourceManager = InputSourceManager()
+        inputSourceManager = InputSourceManager.shared
 
         // Connect debug logging
         inputSourceManager?.debugLogCallback = { [weak self] message in
@@ -990,9 +1087,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusBarManager?.viewModel.isVietnameseEnabled = true
             self.keyboardHandler?.setVietnamese(true)
         } else {
-            // Switched AWAY from XKeyIM
-            debugWindowController?.logEvent("🔄 Switched away from XKeyIM")
-
             // Check if event tap is already running
             // If not (e.g., started with XKeyIM active), start it now
             guard let manager = eventTapManager else { return }
@@ -1000,13 +1094,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // Try to start event tap if it's not running
             do {
                 try manager.start()
-                debugWindowController?.logEvent("  ✅ Event tap started (was not running)")
             } catch EventTapManager.EventTapError.alreadyRunning {
                 // Already running - just resume it
-                debugWindowController?.logEvent("  ▶️ Resuming event tap")
                 manager.resume()
             } catch {
-                debugWindowController?.logEvent("  ❌ Failed to start event tap: \(error)")
+                debugWindowController?.logEvent("❌ Failed to start event tap: \(error)")
             }
 
             // Get current state
@@ -1018,14 +1110,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if !currentlyEnabled {
                     self.statusBarManager?.viewModel.isVietnameseEnabled = true
                     self.keyboardHandler?.setVietnamese(true)
-                    self.debugWindowController?.logEvent("✅ Input Source '\(source.displayName)' → Auto-enabled")
+                    self.debugWindowController?.logEvent("✅ '\(source.displayName)' → Vietnamese ON")
                 }
             } else {
                 // Disable Vietnamese mode
                 if currentlyEnabled {
                     self.statusBarManager?.viewModel.isVietnameseEnabled = false
                     self.keyboardHandler?.setVietnamese(false)
-                    self.debugWindowController?.logEvent("⏹️ Input Source '\(source.displayName)' → Auto-disabled")
+                    self.debugWindowController?.logEvent("⏹️ '\(source.displayName)' → Vietnamese OFF")
                 }
             }
         }
