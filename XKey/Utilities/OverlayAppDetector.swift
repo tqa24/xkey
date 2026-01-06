@@ -8,6 +8,10 @@
 //  This helps Smart Switch avoid overwriting the underlying app's language
 //  preference when user toggles language while an overlay is active.
 //
+//  Detection methods (in priority order):
+//  1. AX Attributes: Check focused element's Title/Subrole/Placeholder
+//  2. Window Owner Name: Fallback to CGWindowList check
+//
 
 import Cocoa
 import ApplicationServices
@@ -30,6 +34,9 @@ class OverlayAppDetector {
 
     /// Timer for monitoring overlay state changes
     private var monitorTimer: Timer?
+    
+    /// Last detected overlay app name (for logging)
+    private var lastDetectedOverlay: String?
 
     private init() {
         // Start monitoring overlay state changes
@@ -40,65 +47,129 @@ class OverlayAppDetector {
         stopMonitoring()
     }
 
-    // MARK: - Known Overlay Apps
+    // MARK: - Known Overlay Apps (Window Owner Names)
 
-    /// List of known overlay apps that should be detected
-    /// These apps typically appear over the current window without becoming
-    /// the frontmost application in NSWorkspace
+    /// List of known overlay apps that should be detected via window owner name
     private static let overlayAppOwnerNames: Set<String> = [
         "Spotlight",      // macOS Spotlight search (Cmd+Space)
         "Raycast",        // Raycast launcher
         "Alfred",         // Alfred launcher
         // Note: Add more overlay apps here if needed
     ]
+    
+    // MARK: - AX Attribute Patterns for Detection
+    
+    /// Patterns to match in AX Title attribute
+    private static let axTitlePatterns: [String] = [
+        "Alfred Search Field",      // Alfred
+    ]
+    
+    /// Patterns to match in AX Subrole attribute
+    private static let axSubrolePatterns: [String] = [
+        "raycast_searchField",      // Raycast
+    ]
+    
+    /// Patterns to match in AX Placeholder attribute
+    private static let axPlaceholderPatterns: [String] = [
+        "Spotlight Search",         // Spotlight
+    ]
 
-    // MARK: - Detection Methods
+    // MARK: - Primary Detection Method (Combined)
 
-    /// Check if any overlay app is currently visible on screen
-    /// - Returns: True if an overlay app window is detected
+    /// Check if any overlay app is currently active
+    /// Uses AX attributes first (more accurate), then falls back to window owner name
+    /// - Returns: True if an overlay app is detected
     func isOverlayAppVisible() -> Bool {
-        // Get all on-screen windows
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
-            logDebug("Failed to get window list")
-            return false
+        // Priority 1: Check AX attributes of focused element (most accurate)
+        if let overlayName = detectOverlayViaAXAttributes() {
+            logDebug("Overlay detected via AX: '\(overlayName)'")
+            lastDetectedOverlay = overlayName
+            return true
         }
+        
+        // Priority 2: Fallback to window owner name check
+        if let overlayName = detectOverlayViaWindowOwner() {
+            logDebug("Overlay detected via Window: '\(overlayName)'")
+            lastDetectedOverlay = overlayName
+            return true
+        }
+        
+        lastDetectedOverlay = nil
+        return false
+    }
+    
+    /// Get the name of the currently visible overlay app, if any
+    /// - Returns: Name of the overlay app, or nil if none visible
+    func getVisibleOverlayAppName() -> String? {
+        // Check via AX first
+        if let name = detectOverlayViaAXAttributes() {
+            return name
+        }
+        
+        // Fallback to window owner
+        return detectOverlayViaWindowOwner()
+    }
 
-        logDebug("Checking \(windows.count) windows for overlay apps")
-
-        // Collect all unique owner names for debugging
-        let allOwners = Set(windows.compactMap { $0[kCGWindowOwnerName as String] as? String })
-        logDebug("Window owners: \(allOwners.sorted().prefix(10).joined(separator: ", "))")
-
-        // Check if any window belongs to a known overlay app
-        for window in windows {
-            if let owner = window[kCGWindowOwnerName as String] as? String {
-                // Check against known overlay apps
-                if Self.overlayAppOwnerNames.contains(owner) {
-                    // Verify it's a visible window (has non-zero bounds)
-                    if let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                       let width = bounds["Width"],
-                       let height = bounds["Height"],
-                       width > 0 && height > 0 {
-                        logDebug("FOUND overlay app: '\(owner)' (size: \(Int(width))×\(Int(height)))")
-                        return true
-                    }
+    // MARK: - AX Attribute Detection (Priority 1)
+    
+    /// Detect overlay app by checking focused element's AX attributes
+    /// - Returns: Name of detected overlay app, or nil if not found
+    private func detectOverlayViaAXAttributes() -> String? {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        
+        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focusedElement = focusedRef else {
+            return nil
+        }
+        
+        let axElement = focusedElement as! AXUIElement
+        
+        // Check AX Title
+        if let title = getAXStringAttribute(axElement, attribute: kAXTitleAttribute) {
+            for pattern in Self.axTitlePatterns {
+                if title.contains(pattern) {
+                    return "Alfred"  // Alfred Search Field
                 }
             }
         }
-
-        logDebug("No overlay app detected")
-        return false
+        
+        // Check AX Subrole
+        if let subrole = getAXStringAttribute(axElement, attribute: kAXSubroleAttribute) {
+            for pattern in Self.axSubrolePatterns {
+                if subrole.contains(pattern) {
+                    return "Raycast"  // raycast_searchField
+                }
+            }
+        }
+        
+        // Check AX Placeholder
+        if let placeholder = getAXStringAttribute(axElement, attribute: kAXPlaceholderValueAttribute) {
+            for pattern in Self.axPlaceholderPatterns {
+                if placeholder.contains(pattern) {
+                    return "Spotlight"  // Spotlight Search
+                }
+            }
+        }
+        
+        return nil
+    }
+    
+    /// Helper to get string attribute from AX element
+    private func getAXStringAttribute(_ element: AXUIElement, attribute: String) -> String? {
+        var valueRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &valueRef) == .success,
+              let value = valueRef as? String else {
+            return nil
+        }
+        return value
     }
 
-    /// Log debug message
-    private func logDebug(_ message: String) {
-        // Log to Debug Window
-        DebugLogger.shared.info(message, source: "OverlayDetector")
-    }
-
-    /// Get the name of the currently visible overlay app, if any
-    /// - Returns: Owner name of the overlay app (e.g., "Spotlight"), or nil if none visible
-    func getVisibleOverlayAppName() -> String? {
+    // MARK: - Window Owner Detection (Priority 2 - Fallback)
+    
+    /// Detect overlay app by checking window owner names
+    /// - Returns: Name of detected overlay app, or nil if not found
+    private func detectOverlayViaWindowOwner() -> String? {
         guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
@@ -106,6 +177,7 @@ class OverlayAppDetector {
         for window in windows {
             if let owner = window[kCGWindowOwnerName as String] as? String,
                Self.overlayAppOwnerNames.contains(owner) {
+                // Verify it's a visible window (has non-zero bounds)
                 if let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                    let width = bounds["Width"],
                    let height = bounds["Height"],
@@ -116,6 +188,13 @@ class OverlayAppDetector {
         }
 
         return nil
+    }
+
+    // MARK: - Logging
+
+    /// Log debug message
+    private func logDebug(_ message: String) {
+        DebugLogger.shared.info(message, source: "OverlayDetector")
     }
 
     // MARK: - Monitoring
@@ -140,7 +219,12 @@ class OverlayAppDetector {
 
         // Detect state change
         if isCurrentlyVisible != wasOverlayVisible {
-            logDebug("Overlay visibility changed: \(wasOverlayVisible ? "visible" : "hidden") → \(isCurrentlyVisible ? "visible" : "hidden")")
+            let overlayName = lastDetectedOverlay ?? "unknown"
+            if isCurrentlyVisible {
+                logDebug("Overlay appeared: '\(overlayName)'")
+            } else {
+                logDebug("Overlay dismissed")
+            }
             wasOverlayVisible = isCurrentlyVisible
 
             // Notify callback
@@ -148,25 +232,21 @@ class OverlayAppDetector {
         }
     }
 
-    /// Check overlay visibility without logging (for polling)
+    /// Check overlay visibility without verbose logging (for polling)
     private func isOverlayVisibleQuiet() -> Bool {
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else {
-            return false
+        // Priority 1: AX Attributes
+        if let overlayName = detectOverlayViaAXAttributes() {
+            lastDetectedOverlay = overlayName
+            return true
         }
-
-        for window in windows {
-            if let owner = window[kCGWindowOwnerName as String] as? String {
-                if Self.overlayAppOwnerNames.contains(owner) {
-                    if let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
-                       let width = bounds["Width"],
-                       let height = bounds["Height"],
-                       width > 0 && height > 0 {
-                        return true
-                    }
-                }
-            }
+        
+        // Priority 2: Window Owner
+        if let overlayName = detectOverlayViaWindowOwner() {
+            lastDetectedOverlay = overlayName
+            return true
         }
-
+        
+        lastDetectedOverlay = nil
         return false
     }
 
@@ -174,8 +254,13 @@ class OverlayAppDetector {
 
     // ℹ️ Screen Recording permission is NOT required for this feature!
     //
-    // We only read kCGWindowOwnerName (application name like "Spotlight", "Raycast")
-    // which is available WITHOUT Screen Recording permission on all macOS versions.
+    // AX Attributes Detection:
+    // - Uses Accessibility API to read focused element attributes
+    // - Requires Accessibility permission (which XKey already needs)
+    //
+    // Window Owner Detection:
+    // - We only read kCGWindowOwnerName (application name like "Spotlight", "Raycast")
+    // - Available WITHOUT Screen Recording permission on all macOS versions
     //
     // Screen Recording permission is only needed for:
     // - kCGWindowName (window title)

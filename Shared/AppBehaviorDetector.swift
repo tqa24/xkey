@@ -19,6 +19,7 @@ enum AppBehavior {
     case jetbrainsIDE       // JetBrains IDEs - need special handling
     case microsoftOffice    // Microsoft Office - may need selection method
     case spotlight          // Spotlight - has autocomplete
+    case overlayLauncher    // Overlay launchers (Raycast, Alfred) - similar to Spotlight
     case electronApp        // Electron apps - may have quirks
     case codeEditor         // Code editors (VSCode, Sublime, etc.)
 }
@@ -321,6 +322,13 @@ class AppBehaviorDetector {
     // MARK: - Singleton
     
     static let shared = AppBehaviorDetector()
+    
+    // MARK: - Dependency Injection
+    
+    /// Callback to get visible overlay app name (injected by XKey app)
+    /// Used to detect Spotlight/Raycast/Alfred without direct dependency on OverlayAppDetector
+    /// Returns overlay app name ("Spotlight", "Raycast", "Alfred") or nil if no overlay visible
+    var overlayAppNameProvider: (() -> String?)?
     
     // MARK: - Cache
     
@@ -866,9 +874,33 @@ class AppBehaviorDetector {
     }
     
     private func detectBehavior(for bundleId: String) -> AppBehavior {
-        // Spotlight
+        // Priority: Check overlay launcher via injected provider (from OverlayAppDetector in XKey)
+        // This detects Spotlight/Raycast/Alfred more accurately when user is focused on search field
+        if let overlayName = overlayAppNameProvider?() {
+            switch overlayName {
+            case "Spotlight":
+                return .spotlight
+            case "Raycast", "Alfred":
+                return .overlayLauncher
+            default:
+                // Unknown overlay, treat as spotlight-like
+                return .spotlight
+            }
+        }
+        
+        // Fallback: Bundle ID check for Spotlight
         if bundleId == "com.apple.Spotlight" {
             return .spotlight
+        }
+        
+        // Raycast
+        if bundleId == "com.raycast.macos" {
+            return .overlayLauncher
+        }
+        
+        // Alfred
+        if bundleId.contains("com.runningwithcrayons.Alfred") {
+            return .overlayLauncher
         }
         
         // JetBrains IDEs
@@ -953,6 +985,14 @@ class AppBehaviorDetector {
                 hasMarkedTextIssues: false,
                 commitDelay: 3000,
                 description: "Spotlight"
+            )
+            
+        case .overlayLauncher:
+            return IMKitBehavior(
+                useMarkedText: true,
+                hasMarkedTextIssues: false,
+                commitDelay: 3000,
+                description: "Overlay Launcher (Raycast/Alfred)"
             )
             
         case .codeEditor:
@@ -1044,13 +1084,44 @@ class AppBehaviorDetector {
             )
         }
         
-        // Spotlight - use autocomplete method
+        // Overlay launchers (Spotlight/Raycast/Alfred) - use autocomplete method
+        // Priority: Check via injected overlay provider (from OverlayAppDetector in XKey)
+        if let overlayName = overlayAppNameProvider?() {
+            return InjectionMethodInfo(
+                method: .autocomplete,
+                delays: (1000, 3000, 1000),
+                textSendingMethod: .chunked,
+                description: "\(overlayName) (Overlay Launcher)"
+            )
+        }
+        
+        // Fallback: Bundle ID check for Spotlight
         if bundleId == "com.apple.Spotlight" {
             return InjectionMethodInfo(
                 method: .autocomplete,
                 delays: (1000, 3000, 1000),
                 textSendingMethod: .chunked,
                 description: "Spotlight"
+            )
+        }
+        
+        // Raycast
+        if bundleId == "com.raycast.macos" {
+            return InjectionMethodInfo(
+                method: .autocomplete,
+                delays: (1000, 3000, 1000),
+                textSendingMethod: .chunked,
+                description: "Raycast"
+            )
+        }
+        
+        // Alfred
+        if bundleId.contains("com.runningwithcrayons.Alfred") {
+            return InjectionMethodInfo(
+                method: .autocomplete,
+                delays: (1000, 3000, 1000),
+                textSendingMethod: .chunked,
+                description: "Alfred"
             )
         }
         

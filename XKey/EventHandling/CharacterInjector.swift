@@ -919,67 +919,7 @@ class CharacterInjector {
         return chromiumBrowsers.contains(frontApp.bundleIdentifier ?? "")
     }
     
-    /// Check if current focused element is in Spotlight
-    private func isSpotlight() -> Bool {
-        // Method 1: Check frontmost app (works for some cases)
-        // Method 1: Check frontmost app
-        if let frontApp = NSWorkspace.shared.frontmostApplication {
-            let bundleId = frontApp.bundleIdentifier ?? "unknown"
-            debugCallback?("    → isSpotlight: frontmostApp = \(bundleId)")
-            if bundleId == "com.apple.Spotlight" {
-                debugCallback?("    → isSpotlight: Detected via frontmostApplication")
-                return true
-            }
-        }
-        
-        // Method 2: Check if Spotlight process is active and has a window
-        // Spotlight runs as a separate process when opened with Cmd+Space
-        let runningApps = NSWorkspace.shared.runningApplications
-        for app in runningApps {
-            if app.bundleIdentifier == "com.apple.Spotlight" && app.isActive {
-                debugCallback?("    → isSpotlight: Detected active Spotlight process")
-                return true
-            }
-        }
-        
-        // Method 3: Check menu bar ownership - Spotlight takes over menu bar when active
-        // When Spotlight is open, the menu bar shows "Spotlight" in the app menu
-        if let menuBarOwner = NSWorkspace.shared.menuBarOwningApplication {
-            let bundleId = menuBarOwner.bundleIdentifier ?? "unknown"
-            debugCallback?("    → isSpotlight: menuBarOwner = \(bundleId)")
-            if bundleId == "com.apple.Spotlight" {
-                debugCallback?("    → isSpotlight: Detected via menuBarOwningApplication")
-                return true
-            }
-        }
-        
-        // Method 4: Use Accessibility API to check focused element's app
-        let systemWideElement = AXUIElementCreateSystemWide()
-        
-        var focusedElement: CFTypeRef?
-        if AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success {
-            let element = focusedElement as! AXUIElement
-            
-            // Get the process ID of the focused element
-            var pid: pid_t = 0
-            if AXUIElementGetPid(element, &pid) == .success {
-                if let app = NSRunningApplication(processIdentifier: pid) {
-                    let bundleId = app.bundleIdentifier ?? "unknown"
-                    let appName = app.localizedName ?? "unknown"
-                    debugCallback?("    → isSpotlight: Focused element app = \(appName) (\(bundleId))")
-                    
-                    if bundleId == "com.apple.Spotlight" {
-                        return true
-                    }
-                }
-            }
-        } else {
-            debugCallback?("    → isSpotlight: Failed to get focused element (AX API)")
-        }
-        
-        debugCallback?("    → isSpotlight: Not Spotlight")
-        return false
-    }
+
     // MARK: - Injection Method Detection
     
     /// Detect injection method based on frontmost app and focused element
@@ -988,7 +928,7 @@ class CharacterInjector {
         // Use AppBehaviorDetector (Single Source of Truth)
         let methodInfo = AppBehaviorDetector.shared.detectInjectionMethod()
         
-        debugCallback?("    → detectMethod: \(methodInfo.description) → \(methodInfo.method), textMode=\(methodInfo.textSendingMethod)")
+        debugCallback?("🌟 detectMethod: \(methodInfo.description) → \(methodInfo.method), textMode=\(methodInfo.textSendingMethod)")
         
         // Update local cache for compatibility
         cachedMethod = methodInfo.method

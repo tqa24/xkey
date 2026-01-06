@@ -13,6 +13,13 @@ struct DebugView: View {
     @ObservedObject var viewModel: DebugViewModel
     @State private var searchText = ""
     @State private var filterLevel: LogLevel = .all
+    @State private var selectedTab: DebugTab = .log
+    @State private var autoScroll = true
+    
+    enum DebugTab: String, CaseIterable {
+        case log = "Log"
+        case textTest = "Text Test"
+    }
     
     enum LogLevel: String, CaseIterable {
         case all = "All"
@@ -67,18 +74,62 @@ struct DebugView: View {
             // Header
             DebugHeaderView(viewModel: viewModel)
             
-            // Toolbar
-            DebugToolbar(
-                viewModel: viewModel,
-                searchText: $searchText,
-                filterLevel: $filterLevel
+            // Tab Picker
+            HStack(spacing: 0) {
+                ForEach(DebugTab.allCases, id: \.self) { tab in
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: tab == .log ? "doc.text" : "textformat.abc")
+                                .font(.system(size: 11))
+                            Text(tab.rawValue)
+                                .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .regular))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                        .background(
+                            selectedTab == tab 
+                                ? Color.blue.opacity(0.1) 
+                                : Color.clear
+                        )
+                        .foregroundColor(selectedTab == tab ? .blue : .secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color.gray.opacity(0.15)),
+                alignment: .bottom
             )
             
-            // Log Viewer
-            LogListView(
-                lines: filteredLines,
-                totalCount: viewModel.logLines.count
-            )
+            // Tab Content
+            switch selectedTab {
+            case .log:
+                // Toolbar (only for Log tab)
+                DebugToolbar(
+                    viewModel: viewModel,
+                    searchText: $searchText,
+                    filterLevel: $filterLevel,
+                    autoScroll: $autoScroll
+                )
+                
+                // Log Viewer
+                LogListView(
+                    lines: filteredLines,
+                    totalCount: viewModel.logLines.count,
+                    autoScroll: $autoScroll
+                )
+                
+            case .textTest:
+                // Text Test Tab
+                TextTestTabView(viewModel: viewModel)
+            }
         }
         .frame(width: 900, height: 650)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -129,46 +180,30 @@ struct DebugHeaderView: View {
                 
                 Text(viewModel.isLoggingEnabled ? "Recording" : "Paused")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(viewModel.isLoggingEnabled ? .green : .orange)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .stroke(viewModel.isLoggingEnabled ? Color.green.opacity(0.4) : Color.orange.opacity(0.4), lineWidth: 1)
-            )
             
             // Stats
             HStack(spacing: 4) {
                 Image(systemName: "doc.text")
                     .font(.system(size: 10))
-                    .foregroundColor(.blue)
                 Text("\(viewModel.logLines.count)")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                 Text("lines")
                     .font(.system(size: 10))
-                    .foregroundColor(.secondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Color.blue.opacity(0.08))
-            )
             
             HStack(spacing: 4) {
                 Image(systemName: "clock")
                     .font(.system(size: 10))
-                    .foregroundColor(.green)
                 Text(timeString)
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(Color.green.opacity(0.08))
-            )
             .onReceive(timer) { time in
                 currentTime = time
             }
@@ -197,6 +232,7 @@ struct DebugToolbar: View {
     @ObservedObject var viewModel: DebugViewModel
     @Binding var searchText: String
     @Binding var filterLevel: DebugView.LogLevel
+    @Binding var autoScroll: Bool
     
     var body: some View {
         HStack(spacing: 10) {
@@ -264,6 +300,29 @@ struct DebugToolbar: View {
                 }
             }
             
+            Divider().frame(height: 18)
+            
+            // App Detector Test Button
+            Button {
+                if viewModel.isAppDetectorTestRunning {
+                    viewModel.stopAppDetectorTest()
+                } else {
+                    viewModel.startAppDetectorTest()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: viewModel.isAppDetectorTestRunning ? "stop.circle.fill" : "magnifyingglass.circle")
+                        .font(.system(size: 12))
+                    Text(viewModel.isAppDetectorTestRunning ? "Stop (\(viewModel.appDetectorTestCountdown))" : "Test App Detector")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .foregroundColor(viewModel.isAppDetectorTestRunning ? .orange : .purple)
+            }
+            .buttonStyle(.plain)
+            .help("Test App Behavior Detector (Spotlight/Raycast/Alfred/etc.)")
+            
             Spacer()
             
             // Toggle Buttons
@@ -281,6 +340,12 @@ struct DebugToolbar: View {
             .onChange(of: viewModel.isLoggingEnabled) { _ in
                 viewModel.toggleLogging()
             }
+            
+            Toggle(isOn: $autoScroll) {
+                Text("Auto-Scroll")
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.checkbox)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -324,8 +389,8 @@ struct ToolbarIconButton: View {
 struct LogListView: View {
     let lines: [String]
     let totalCount: Int
+    @Binding var autoScroll: Bool
     
-    @State private var autoScroll = true
     @State private var lastLineCount = 0
     
     var body: some View {
@@ -343,16 +408,6 @@ struct LogListView: View {
                 }
                 
                 Spacer()
-                
-                Toggle(isOn: $autoScroll) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "arrow.down.to.line")
-                            .font(.system(size: 9))
-                        Text("Auto-scroll")
-                            .font(.system(size: 10))
-                    }
-                }
-                .toggleStyle(.checkbox)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 5)
@@ -370,12 +425,26 @@ struct LogListView: View {
                 }
                 .background(Color(nsColor: .textBackgroundColor))
                 .onChange(of: lines.count) { newCount in
-                    if autoScroll && newCount > lastLineCount {
+                    // When logs are cleared (count decreased), reset tracking
+                    if newCount < lastLineCount {
+                        lastLineCount = 0
+                    }
+
+                    // Auto-scroll to bottom when new lines are added
+                    if autoScroll && newCount > 0 && newCount > lastLineCount {
                         withAnimation(.easeOut(duration: 0.1)) {
                             proxy.scrollTo(newCount - 1, anchor: .bottom)
                         }
                     }
                     lastLineCount = newCount
+                }
+                .onChange(of: autoScroll) { isEnabled in
+                    // When auto-scroll is toggled ON, immediately scroll to bottom
+                    if isEnabled && lines.count > 0 {
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            proxy.scrollTo(lines.count - 1, anchor: .bottom)
+                        }
+                    }
                 }
             }
         }
@@ -426,6 +495,195 @@ struct LogLineView: View {
             return Color.blue.opacity(0.06)
         }
         return lineNumber % 2 == 0 ? Color.clear : Color.gray.opacity(0.025)
+    }
+}
+
+// MARK: - Text Test Tab View
+
+struct TextTestTabView: View {
+    @ObservedObject var viewModel: DebugViewModel
+    @State private var textEditorContent = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {            
+            // Main Content
+            HStack(spacing: 0) {
+                // Left: Text Input Area (takes remaining space)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Test Input")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    
+                    TextTestEditor(text: $textEditorContent)
+                    .frame(maxHeight: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                }
+                .padding()
+                .frame(maxWidth: .infinity)
+                
+                Divider()
+                
+                // Right: External App Info Panel
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        // App Info Section
+                        VStack(alignment: .leading, spacing: 8) {
+                            InfoRow(label: "App Name", value: viewModel.focusedAppName)
+                            InfoRow(label: "Bundle ID", value: viewModel.focusedAppBundleID)
+                            InfoRow(label: "Window", value: viewModel.focusedWindowTitle)
+                        }
+                        
+                        Divider()
+                        
+                        // Input Element Section
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Input Element")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            
+                            InfoRow(label: "AX Role", value: viewModel.focusedInputRole)
+                            InfoRow(label: "AX Subrole", value: viewModel.focusedInputSubrole)
+                        }
+                        
+                        Divider()
+                        
+                        // Caret Context (unified - works for any focused app)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Caret Context")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                
+                                Spacer()
+                                
+                                Text("Pos: \(viewModel.externalCaretPosition)")
+                                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                    .foregroundColor(.blue)
+                            }
+                            
+                            // Word Before
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Word Before Caret")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                
+                                Text(viewModel.externalWordBeforeCaret.isEmpty ? "(none)" : viewModel.externalWordBeforeCaret)
+                                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                    .foregroundColor(viewModel.externalWordBeforeCaret.isEmpty ? .secondary : .primary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.green.opacity(0.08))
+                                    )
+                            }
+                            
+                            // Word After
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Word After Caret")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                                
+                                Text(viewModel.externalWordAfterCaret.isEmpty ? "(none)" : viewModel.externalWordAfterCaret)
+                                    .font(.system(size: 13, weight: .medium, design: .monospaced))
+                                    .foregroundColor(viewModel.externalWordAfterCaret.isEmpty ? .secondary : .primary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .fill(Color.orange.opacity(0.08))
+                                    )
+                            }
+                        }                                        
+                    }
+                    .padding()
+                }
+                .frame(width: 280)
+            }
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            viewModel.startExternalMonitoring()
+        }
+        .onDisappear {
+            viewModel.stopExternalMonitoring()
+        }
+    }
+}
+
+// MARK: - Info Row Helper
+
+struct InfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 9))
+                .foregroundColor(.secondary)
+            
+            Text(value.isEmpty ? "(empty)" : value)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(value.isEmpty ? .secondary : .primary)
+                .lineLimit(2)
+                .truncationMode(.middle)
+        }
+    }
+}
+
+// MARK: - Text Test Editor (Simple NSTextView wrapper)
+
+struct TextTestEditor: NSViewRepresentable {
+    @Binding var text: String
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        let textView = scrollView.documentView as! NSTextView
+        
+        textView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        textView.textContainerInset = NSSize(width: 8, height: 8)
+        textView.isRichText = false
+        textView.delegate = context.coordinator
+        textView.allowsUndo = true
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        
+        return scrollView
+    }
+    
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        let textView = nsView.documentView as! NSTextView
+        if textView.string != text {
+            textView.string = text
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, NSTextViewDelegate {
+        var parent: TextTestEditor
+        
+        init(_ parent: TextTestEditor) {
+            self.parent = parent
+        }
+        
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            parent.text = textView.string
+        }
     }
 }
 

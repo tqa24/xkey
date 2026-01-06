@@ -93,6 +93,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         AppBehaviorDetector.shared.loadCustomRules()
         debugWindowController?.logEvent("Loaded \(AppBehaviorDetector.shared.getCustomRules().count) custom Window Title Rules")
         
+        // Inject OverlayAppDetector into AppBehaviorDetector
+        // This allows Shared/AppBehaviorDetector to detect overlay apps without direct dependency
+        AppBehaviorDetector.shared.overlayAppNameProvider = {
+            return OverlayAppDetector.shared.getVisibleOverlayAppName()
+        }
+        
         // Initialize components
         setupKeyboardHandling()
         setupStatusBar()
@@ -998,6 +1004,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             behaviorName = "Microsoft Office"
         case .spotlight:
             behaviorName = "Spotlight"
+        case .overlayLauncher:
+            behaviorName = "Overlay Launcher (Raycast/Alfred)"
         case .electronApp:
             behaviorName = "Electron App"
         case .codeEditor:

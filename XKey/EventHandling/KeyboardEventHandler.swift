@@ -116,13 +116,13 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
         // Set up engine logging (only logs when verboseEngineLogging is enabled)
         self.engine.logCallback = { [weak self] message in
             guard let self = self, self.verboseEngineLogging else { return }
-            self.debugLogCallback?("🔧 Engine: \(message)")
+            self.debugLogCallback?("Engine: \(message)")
         }
         
         // Set up injector debug logging (only logs when verboseEngineLogging is enabled)
         self.injector.debugCallback = { [weak self] message in
             guard let self = self, self.verboseEngineLogging else { return }
-            self.debugLogCallback?("💉 Injector: \(message)")
+            self.debugLogCallback?("Injector: \(message)")
         }
 
         // Set up callback for engine to get word before cursor via Accessibility API
