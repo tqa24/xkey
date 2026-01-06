@@ -386,6 +386,14 @@ struct AdvancedSection: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(isDownloading)
+
+                // Open dictionary folder button
+                Button(action: openDictionaryFolder) {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Mở thư mục chứa từ điển")
             } else if isDictionaryAvailable {
                 Text("Từ điển đã tải về nhưng chưa được nạp")
                     .font(.caption)
@@ -664,6 +672,11 @@ struct AdvancedSection: View {
                 }
             }
         }
+    }
+
+    private func openDictionaryFolder() {
+        let url = VNDictionaryManager.shared.getDictionaryDirectoryURL()
+        NSWorkspace.shared.open(url)
     }
     
     // MARK: - User Dictionary Actions

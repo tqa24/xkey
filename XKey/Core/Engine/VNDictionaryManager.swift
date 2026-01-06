@@ -67,6 +67,11 @@ class VNDictionaryManager {
         return wordSets[style.rawValue] != nil
     }
 
+    /// Get the directory where dictionaries are stored
+    func getDictionaryDirectoryURL() -> URL {
+        return dictionaryDirectory
+    }
+
     /// Download dictionary from repository
     func downloadDictionary(style: DictionaryStyle = .dauMoi, completion: @escaping (Result<Void, Error>) -> Void) {
         guard let urlString = dictionaryURLs[style.rawValue],
@@ -75,25 +80,47 @@ class VNDictionaryManager {
             return
         }
 
+        DebugLogger.shared.log("[VNDict] Starting download from: \(urlString)")
+        DebugLogger.shared.log("[VNDict] Target directory: \(dictionaryDirectory.path)")
+
         let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             guard let self = self else { return }
 
             if let error = error {
+                DebugLogger.shared.log("[VNDict] Download error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
 
-            guard let data = data else {
+            // Check HTTP status
+            if let httpResponse = response as? HTTPURLResponse {
+                DebugLogger.shared.log("[VNDict] HTTP status: \(httpResponse.statusCode)")
+                if httpResponse.statusCode != 200 {
+                    completion(.failure(DictionaryError.noData))
+                    return
+                }
+            }
+
+            guard let data = data, !data.isEmpty else {
+                DebugLogger.shared.log("[VNDict] No data received")
                 completion(.failure(DictionaryError.noData))
                 return
             }
 
+            DebugLogger.shared.log("[VNDict] Received \(data.count) bytes")
+
             // Save to local storage
             let localPath = self.dictionaryDirectory.appendingPathComponent("vi-\(style.rawValue).dic")
+            DebugLogger.shared.log("[VNDict] Saving to: \(localPath.path)")
+
             do {
                 try data.write(to: localPath)
+                // Verify file was written
+                let exists = FileManager.default.fileExists(atPath: localPath.path)
+                DebugLogger.shared.log("[VNDict] File saved, exists: \(exists)")
                 completion(.success(()))
             } catch {
+                DebugLogger.shared.log("[VNDict] Write error: \(error.localizedDescription)")
                 completion(.failure(error))
             }
         }
@@ -103,8 +130,10 @@ class VNDictionaryManager {
     /// Load dictionary from local storage into memory
     func loadDictionary(style: DictionaryStyle = .dauMoi) throws {
         let localPath = dictionaryDirectory.appendingPathComponent("vi-\(style.rawValue).dic")
+        DebugLogger.shared.log("[VNDict] Loading from: \(localPath.path)")
 
         guard FileManager.default.fileExists(atPath: localPath.path) else {
+            DebugLogger.shared.log("[VNDict] File not found at: \(localPath.path)")
             throw DictionaryError.fileNotFound
         }
 
