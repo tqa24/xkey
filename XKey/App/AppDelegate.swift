@@ -944,18 +944,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         mouseClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             // Log that mouse click was detected (always visible, not verbose)
             self?.debugWindowController?.logEvent("Mouse click (global) → resetting engine buffer")
-            
+
             // Reset engine when mouse is clicked (likely focus change or cursor move)
             // Mark as cursor moved to disable autocomplete fix (avoid deleting text on right)
             self?.keyboardHandler?.resetWithCursorMoved()
 
+            // Special case: If clicking into overlay app (Spotlight/Raycast/Alfred) with empty input,
+            // reset mid-sentence flag to allow Forward Delete (safe since no text to delete)
+            // Use 0.1s delay to allow AX API to update focused element after click
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                if let overlayName = OverlayAppDetector.shared.getVisibleOverlayAppName() {
+                    let detector = AppBehaviorDetector.shared
+                    if detector.isFocusedElementEmpty() {
+                        self?.keyboardHandler?.resetMidSentenceFlag()
+                        self?.debugWindowController?.logEvent("Overlay '\(overlayName)' with empty input → reset mid-sentence flag")
+                    }
+                }
+            }
+
             // Log detailed input detection info (only when verbose logging is on - handled inside function)
             self?.logMouseClickInputDetection()
-            
+
             // Reset lastFocusedElement to allow toolbar to re-show after auto-hide
             // When user clicks, they might be moving cursor within same field
             self?.lastFocusedElement = nil
-            
+
             // Trigger toolbar check with slight delay to allow focus to settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self?.checkAndShowToolbarForFocusedElement()

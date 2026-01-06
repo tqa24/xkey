@@ -641,6 +641,13 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
         injector.clearMethodCache()
     }
 
+    /// Reset mid-sentence flag only (without resetting engine)
+    /// Used when clicking into overlay app (Spotlight/Raycast/Alfred) with empty input field
+    /// Since the field is empty, Forward Delete is safe (nothing to delete on right)
+    func resetMidSentenceFlag() {
+        injector.resetMidSentenceFlag()
+    }
+
     // MARK: - Excluded Apps Check
     
     /// Apps that should always pass through all keys (remote devices handle input)

@@ -69,11 +69,19 @@ struct MacroSection: View {
                                     .foregroundColor(.clear)
                             }
                             
-                            Button("Thêm") {
-                                addMacro()
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(" ")
+                                    .font(.caption)
+                                    .foregroundColor(.clear)
+                                Button("Thêm") {
+                                    addMacro()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(newMacroText.isEmpty || newMacroContent.isEmpty)
+                                Text(" ")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.clear)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(newMacroText.isEmpty || newMacroContent.isEmpty)
                         }
                         
                         if showError {

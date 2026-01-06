@@ -872,29 +872,51 @@ class VNEngine {
                 return
             }
             
-            // Additional check for W key (and VNI 6/7/8): reject if there are UNMODIFIED vowels before lastChar
-            // This prevents insertW() from going back and modifying an earlier vowel
-            // Example: "u + a + w" - lastChar is 'a', but insertW would modify 'u' → ư, which is "free mark" behavior
-            // Exception: if the earlier vowel is ALREADY modified (has TONEW_MASK or TONE_MASK), it's fine
-            // Example: "ư + o + w" - 'ư' is already modified, so 'w' will only modify 'o' → ơ
+            // Additional check for W key (and VNI 6/7/8): reject only if insertW() would modify
+            // an earlier vowel that is NOT the lastChar (true "free mark" behavior)
+            //
+            // insertW() logic for 2 vowels (from insertW function):
+            // - U + O → both get TONEW_MASK (ươ) - OK, standard pattern
+            // - U + A, U + I, U + U, O + I → only first vowel (v1) gets modified - REJECT (free mark)
+            // - I + O, O + A → only second vowel (v2) gets modified - OK, modifies lastChar
+            // - Other combinations → do nothing
+            //
+            // So we only reject when: there are 2 unmodified vowels AND insertW would modify v1 only
+            // Patterns that modify v1 only: U+A, U+I, U+U, O+I
             if needsExtraVowelCheck && expectedVowels.contains(lastChar) {
-                // Count UNMODIFIED vowels before the lastChar
-                var unmodifiedVowelCountBeforeLast = 0
-                for i in 0..<(Int(index) - 1) {
+                // Find unmodified vowels and their keys
+                var unmodifiedVowels: [(index: Int, key: UInt16)] = []
+                for i in 0..<Int(index) {
                     if vietnameseData.isVowelKey(chr(i)) {
-                        // Check if this vowel is already modified
-                        let isAlreadyModified = (typingWord[i] & VNEngine.TONEW_MASK) != 0 || 
+                        let isAlreadyModified = (typingWord[i] & VNEngine.TONEW_MASK) != 0 ||
                                                 (typingWord[i] & VNEngine.TONE_MASK) != 0
                         if !isAlreadyModified {
-                            unmodifiedVowelCountBeforeLast += 1
+                            unmodifiedVowels.append((index: i, key: chr(i)))
                         }
                     }
                 }
-                
-                if unmodifiedVowelCountBeforeLast > 0 {
-                    logCallback?("  → Free Mark OFF: W key with \(unmodifiedVowelCountBeforeLast) unmodified vowels before lastChar - REJECTED (would modify earlier vowel)")
-                    insertKey(keyCode: keyCode, isCaps: isCaps)
-                    return
+
+                // insertW() uses vowelStartIndex and vowelStartIndex+1 (first 2 vowels)
+                // So we check if the first 2 unmodified vowels would trigger "free mark" behavior
+                if unmodifiedVowels.count >= 2 {
+                    let v1Key = unmodifiedVowels[0].key
+                    let v2Key = unmodifiedVowels[1].key
+
+                    // These patterns would modify v1 only (the earlier vowel) - this is "free mark" behavior
+                    // U+A → ư+a, U+I → ư+i, U+U → ư+u, O+I → ơ+i
+                    let wouldModifyV1Only =
+                        (v1Key == VietnameseData.KEY_U && v2Key == VietnameseData.KEY_A) ||
+                        (v1Key == VietnameseData.KEY_U && v2Key == VietnameseData.KEY_I) ||
+                        (v1Key == VietnameseData.KEY_U && v2Key == VietnameseData.KEY_U) ||
+                        (v1Key == VietnameseData.KEY_O && v2Key == VietnameseData.KEY_I)
+
+                    if wouldModifyV1Only {
+                        logCallback?("  → Free Mark OFF: W key would modify earlier vowel (v1=\(v1Key), v2=\(v2Key)) - REJECTED")
+                        insertKey(keyCode: keyCode, isCaps: isCaps)
+                        return
+                    }
+
+                    logCallback?("  → Free Mark OFF: W key with \(unmodifiedVowels.count) vowels (v1=\(v1Key), v2=\(v2Key)) - ALLOWED (modifies lastChar or both)")
                 }
             }
         }

@@ -678,42 +678,6 @@ class DebugViewModel: ObservableObject {
                bundleID.lowercased().contains("launchbar")
     }
     
-    /// Get focused text using Accessibility API
-    private func getFocusedTextViaAX() -> String? {
-        let systemWide = AXUIElementCreateSystemWide()
-        var focusedRef: CFTypeRef?
-        
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
-              let focusedElement = focusedRef else {
-            return nil
-        }
-        
-        let axElement = focusedElement as! AXUIElement
-        
-        // Try to get the value (text content)
-        var valueRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(axElement, kAXValueAttribute as CFString, &valueRef) == .success,
-           let value = valueRef as? String {
-            return value
-        }
-        
-        // Try to get selected text
-        var selectedTextRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(axElement, kAXSelectedTextAttribute as CFString, &selectedTextRef) == .success,
-           let selectedText = selectedTextRef as? String {
-            return selectedText
-        }
-        
-        // Try to get role to at least confirm it's a text field
-        var roleRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(axElement, kAXRoleAttribute as CFString, &roleRef) == .success,
-           let role = roleRef as? String {
-            return "[Role: \(role)]"
-        }
-        
-        return nil
-    }
-    
     /// Add a log line to app detector test log AND main debug log
     private func addAppDetectorLog(_ message: String) {
         // Write to main debug log (file-based) so it shows in Log tab

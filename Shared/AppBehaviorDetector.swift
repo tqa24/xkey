@@ -675,7 +675,35 @@ class AppBehaviorDetector {
         
         return nil
     }
-    
+
+    /// Get current focused element's text value using Accessibility API
+    /// - Returns: The text value of the focused element, or nil if not available
+    func getFocusedElementTextValue() -> String? {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+
+        if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+           let el = focused {
+            let axEl = el as! AXUIElement
+            var textVal: CFTypeRef?
+            if AXUIElementCopyAttributeValue(axEl, kAXValueAttribute as CFString, &textVal) == .success,
+               let text = textVal as? String {
+                return text
+            }
+        }
+
+        return nil
+    }
+
+    /// Check if focused element is empty (no text or empty string)
+    /// - Returns: true if focused element has no text or empty text
+    func isFocusedElementEmpty() -> Bool {
+        guard let text = getFocusedElementTextValue() else {
+            return true  // No text value = empty
+        }
+        return text.isEmpty
+    }
+
     /// Clear cache (call when app changes)
     func clearCache() {
         cachedBundleId = nil
