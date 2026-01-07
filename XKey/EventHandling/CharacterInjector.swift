@@ -124,6 +124,22 @@ class CharacterInjector {
                 debugCallback?("    → Autocomplete method: Forward Delete + backspaces (skipFwdDel=\(!shouldForwardDelete))")
                 injectViaAutocompleteInternal(count: backspaceCount, delays: delays, proxy: proxy, skipForwardDelete: !shouldForwardDelete)
 
+            case .axDirect:
+                // AX Direct: Use Accessibility API to manipulate text directly
+                // Used for Firefox-based browsers content area where keyboard events don't work well
+                debugCallback?("    → AX Direct method: bs=\(backspaceCount), text=\"\(charPreview)\"")
+                // Forward debug callback to AdvancedInjectionMethods
+                AdvancedInjectionMethods.shared.debugCallback = debugCallback
+                AdvancedInjectionMethods.shared.injectViaAXWithFallback(bs: backspaceCount, text: charPreview) {
+                    // Fallback to selection method if AX fails
+                    self.debugCallback?("    → AX failed, fallback to selection")
+                    self.injectViaSelectionInternal(count: backspaceCount, delays: delays, proxy: proxy)
+                    self.sendTextChunkedInternal(charPreview, delay: delays.text, proxy: proxy, useDirectPost: false)
+                }
+                // AX Direct handles both backspace and text insertion (or fallback does), so skip Step 2
+                debugCallback?("injectSync: complete (AX Direct)")
+                return
+
             case .slow, .fast:
                 debugCallback?("    → Backspace method: delays=\(delays), directPost=\(useDirectPost)")
                 // Use smart Forward Delete detection: checks AX API for text after cursor
@@ -331,6 +347,12 @@ class CharacterInjector {
             // Autocomplete method: Forward Delete to clear suggestion, then backspaces
             debugCallback?("    → Autocomplete method: Forward Delete + backspaces")
             injectViaAutocomplete(count: count, delays: delays, proxy: proxy)
+
+        case .axDirect:
+            // AX Direct method: For backspace-only, fall back to selection method
+            // (AX API needs both backspace count AND replacement text to work properly)
+            debugCallback?("    → AX Direct (backspace-only): fallback to selection × \(count)")
+            injectViaSelection(count: count, delays: delays, proxy: proxy)
 
         case .slow:
             // Slow method for Terminal/JetBrains: higher delays between keystrokes

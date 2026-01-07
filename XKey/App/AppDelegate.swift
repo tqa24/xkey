@@ -1036,6 +1036,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case .slow: injectionMethodName = "Slow"
         case .selection: injectionMethodName = "Selection"
         case .autocomplete: injectionMethodName = "Autocomplete"
+        case .axDirect: injectionMethodName = "AX Direct"
         }
 
         // Get current input source

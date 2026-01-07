@@ -2,7 +2,7 @@
 //  AdvancedInjectionMethods.swift
 //  XKey
 //
-//  Advanced injection methods for special apps (not yet activated)
+//  Advanced injection methods for special apps
 //  These methods are ready to be integrated when needed
 //
 
@@ -19,13 +19,16 @@ import Carbon
 class AdvancedInjectionMethods {
     
     static let shared = AdvancedInjectionMethods()
-    
+
     /// Event marker for XKey-injected events
     private let kEventMarker: Int64 = 0x584B4559  // "XKEY" in hex
-    
+
     /// Session buffer for selectAll method - tracks full text typed in session
     private var sessionBuffer: String = ""
-    
+
+    /// Debug callback for logging
+    var debugCallback: ((String) -> Void)?
+
     private init() {}
     
     // MARK: - Session Buffer Management
@@ -65,7 +68,6 @@ class AdvancedInjectionMethods {
     /// Session buffer tracks ALL text typed in this session, not just current word
     ///
     /// - Parameter proxy: Event tap proxy for posting events
-    /// - Note: NOT YET INTEGRATED - Ready for future use
     func injectViaSelectAll(proxy: CGEventTapProxy) {
         guard let source = CGEventSource(stateID: .privateState) else { return }
         
@@ -101,14 +103,13 @@ class AdvancedInjectionMethods {
     ///   - bs: Number of characters to backspace
     ///   - text: Replacement text to insert
     /// - Returns: true if successful, false if caller should fallback to synthetic events
-    /// - Note: NOT YET INTEGRATED - Ready for future use
     func injectViaAX(bs: Int, text: String) -> Bool {
         // Get focused element
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
               let ref = focusedRef else {
-            print("[AX] No focused element")
+            debugCallback?("[AX] No focused element")
             return false
         }
         let axEl = ref as! AXUIElement
@@ -116,7 +117,7 @@ class AdvancedInjectionMethods {
         // Read current text value
         var valueRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axEl, kAXValueAttribute as CFString, &valueRef) == .success else {
-            print("[AX] No value attribute")
+            debugCallback?("[AX] No value attribute")
             return false
         }
         let fullText = (valueRef as? String) ?? ""
@@ -125,12 +126,12 @@ class AdvancedInjectionMethods {
         var rangeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(axEl, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
               let axRange = rangeRef else {
-            print("[AX] No selected text range")
+            debugCallback?("[AX] No selected text range")
             return false
         }
         var range = CFRange()
         guard AXValueGetValue(axRange as! AXValue, .cfRange, &range), range.location >= 0 else {
-            print("[AX] Invalid range")
+            debugCallback?("[AX] Invalid range")
             return false
         }
         
@@ -151,7 +152,7 @@ class AdvancedInjectionMethods {
         
         // Write new value
         guard AXUIElementSetAttributeValue(axEl, kAXValueAttribute as CFString, newText as CFTypeRef) == .success else {
-            print("[AX] Write failed")
+            debugCallback?("[AX] Write failed")
             return false
         }
         
@@ -160,8 +161,8 @@ class AdvancedInjectionMethods {
         if let newRange = AXValueCreate(.cfRange, &newCursor) {
             AXUIElementSetAttributeValue(axEl, kAXSelectedTextRangeAttribute as CFString, newRange)
         }
-        
-        print("[AX] Success: bs=\(bs), text=\(text)")
+
+        debugCallback?("[AX] Success: bs=\(bs), text=\(text)")
         return true
     }
     
@@ -185,7 +186,7 @@ class AdvancedInjectionMethods {
         }
         
         // All AX attempts failed - call fallback
-        print("[AX] Fallback to synthetic events")
+        debugCallback?("[AX] Fallback to synthetic events")
         fallback()
     }
     
@@ -245,7 +246,7 @@ class AdvancedInjectionMethods {
     }
 }
 
-// MARK: - Usage Example (for future integration)
+// MARK: - Usage Example
 /*
  
  To integrate selectAll method:

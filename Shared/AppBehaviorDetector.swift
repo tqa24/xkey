@@ -50,11 +50,32 @@ struct IMKitBehavior {
 // MARK: - CGEvent Injection Types (for CharacterInjector)
 
 /// Injection method for CGEvent-based input
-enum InjectionMethod {
+enum InjectionMethod: String, Codable, CaseIterable {
     case fast           // Default: backspace + text with minimal delays
     case slow           // Terminals/IDEs: backspace + text with higher delays
     case selection      // Browser address bars: Shift+Left select + type replacement
     case autocomplete   // Spotlight: Forward Delete + backspace + text
+    case axDirect       // Firefox content area: Use Accessibility API to set text directly
+
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast"
+        case .slow: return "Slow"
+        case .selection: return "Selection"
+        case .autocomplete: return "Autocomplete"
+        case .axDirect: return "AX Direct"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .fast: return "Backspace + gõ text với delay thấp (mặc định)"
+        case .slow: return "Backspace + gõ text với delay cao (Terminal, IDE)"
+        case .selection: return "Shift+Left select + gõ thay thế (Browser address bar)"
+        case .autocomplete: return "Forward Delete + backspace + text (Spotlight, Raycast)"
+        case .axDirect: return "Dùng Accessibility API trực tiếp (Firefox content area)"
+        }
+    }
 }
 
 /// Injection delays in microseconds (backspace, wait, text)
@@ -278,6 +299,7 @@ struct WindowTitleRule: Codable, Identifiable {
             case .slow: methodString = "slow"
             case .selection: methodString = "selection"
             case .autocomplete: methodString = "autocomplete"
+            case .axDirect: methodString = "axDirect"
             }
             try container.encode(methodString, forKey: .injectionMethod)
         }
@@ -329,6 +351,18 @@ class AppBehaviorDetector {
     /// Used to detect Spotlight/Raycast/Alfred without direct dependency on OverlayAppDetector
     /// Returns overlay app name ("Spotlight", "Raycast", "Alfred") or nil if no overlay visible
     var overlayAppNameProvider: (() -> String?)?
+    
+    // MARK: - Force Override (for Injection Test)
+    
+    /// Force override injection method (set by Injection Test)
+    /// When set, detectInjectionMethod() returns this instead of auto-detecting
+    var forceInjectionMethod: InjectionMethod? = nil
+    
+    /// Force override text sending method (set by Injection Test)
+    var forceTextSendingMethod: TextSendingMethod? = nil
+    
+    /// Force override delays (set by Injection Test)
+    var forceDelays: InjectionDelays? = nil
     
     // MARK: - Cache
 
@@ -530,15 +564,6 @@ class AppBehaviorDetector {
         "com.operasoftware.OperaGX",
         "com.operasoftware.OperaAir",
         "com.opera.OperaNext",
-        // Firefox-based
-        "org.mozilla.firefox",
-        "org.mozilla.firefoxdeveloperedition",
-        "org.mozilla.nightly",
-        "org.waterfoxproject.waterfox",
-        "io.gitlab.librewolf-community.librewolf",
-        "one.ablaze.floorp",
-        "org.torproject.torbrowser",
-        "net.mullvad.mullvadbrowser",
         // Safari
         "com.apple.Safari",
         "com.apple.SafariTechnologyPreview",
@@ -548,14 +573,36 @@ class AppBehaviorDetector {
         "company.thebrowser.Browser",
         "company.thebrowser.Arc",
         "company.thebrowser.dia",
-        "app.zen-browser.zen",
         "com.sigmaos.sigmaos.macos",
         "com.pushplaylabs.sidekick",
         "com.firstversionist.polypane",
         "ai.perplexity.comet",
         "com.duckduckgo.macos.browser"
     ]
-    
+
+    /// Firefox-based browsers - need special handling for content area
+    /// Address bar (AXTextField): use selection method
+    /// Content area (AXWindow): use axDirect method (AX API to set text directly)
+    /// Note: Selection method in content area interferes with mouse word selection
+    static let firefoxBasedBrowsers: Set<String> = [
+        "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "org.mozilla.nightly",
+        "org.waterfoxproject.waterfox",
+        "io.gitlab.librewolf-community.librewolf",
+        "one.ablaze.floorp",
+        "org.torproject.torbrowser",
+        "net.mullvad.mullvadbrowser"
+    ]
+
+    /// Browsers that need AX attribute-based detection for address bar
+    /// These browsers have non-standard address bar detection (not AXTextField/AXComboBox)
+    /// Address bar is detected via AX Description regex pattern: "Search with xx or enter address"
+    static let axAttributeDetectForBrowsers: Set<String> = [
+        "app.zen-browser.zen"  // Zen Browser
+        // Add more similar browsers
+    ]
+
     /// Code editors (Electron-based or native)
     static let codeEditors: Set<String> = [
         // VSCode and variants
@@ -671,6 +718,104 @@ class AppBehaviorDetector {
             var roleVal: CFTypeRef?
             AXUIElementCopyAttributeValue(axEl, kAXRoleAttribute as CFString, &roleVal)
             return roleVal as? String
+        }
+        
+        return nil
+    }
+
+    /// Get current focused element's AX Description using Accessibility API
+    /// - Returns: The AX Description of the focused element, or nil if not available
+    func getFocusedElementDescription() -> String? {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        
+        if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+           let el = focused {
+            let axEl = el as! AXUIElement
+            var descVal: CFTypeRef?
+            AXUIElementCopyAttributeValue(axEl, kAXDescriptionAttribute as CFString, &descVal)
+            return descVal as? String
+        }
+        
+        return nil
+    }
+    
+    /// Get current focused element's AX Identifier (DOM ID) using Accessibility API
+    /// - Returns: The AX Identifier of the focused element, or nil if not available
+    func getFocusedElementIdentifier() -> String? {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        
+        if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+           let el = focused {
+            let axEl = el as! AXUIElement
+            var identifierVal: CFTypeRef?
+            AXUIElementCopyAttributeValue(axEl, kAXIdentifierAttribute as CFString, &identifierVal)
+            return identifierVal as? String
+        }
+        
+        return nil
+    }
+    
+    /// Check if focused element matches Zen-style address bar pattern
+    /// Detection methods:
+    /// 1. DOM ID/Identifier: "urlbar-input" (Firefox/Zen Browser standard)
+    /// 2. AX Description Pattern: "Search with <search_engine> or enter address"
+    /// - Returns: true if focused element is a Zen-style address bar
+    func isFirefoxStyleAddressBar() -> Bool {
+        // Check DOM ID first (most reliable for Firefox-based browsers)
+        if let identifier = getFocusedElementIdentifier(), identifier == "urlbar-input" {
+            return true
+        }
+        
+        // Fallback: Check AX Description pattern
+        guard let desc = getFocusedElementDescription() else { return false }
+        // Regex: "Search with <anything> or enter address"
+        let pattern = "^Search with .+ or enter address$"
+        return desc.range(of: pattern, options: .regularExpression) != nil
+    }
+    
+    /// Check if focused element is Safari's address bar
+    /// Detection via AX Identifier: "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD"
+    /// - Returns: true if focused element is Safari's address bar
+    func isSafariAddressBar() -> Bool {
+        guard let identifier = getFocusedElementIdentifier() else { return false }
+        return identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD"
+    }
+    
+    /// Check if focused element is Chromium-based browser's address bar (Chrome, Edge, Brave, etc.)
+    /// Detection methods:
+    /// 1. AX Description: "Address and search bar"
+    /// 2. AX DOM Classes: contains "OmniboxViewViews"
+    /// - Returns: true if focused element is Chromium's address bar (Omnibox)
+    func isChromiumAddressBar() -> Bool {
+        // Check AX Description
+        if let desc = getFocusedElementDescription(), desc == "Address and search bar" {
+            return true
+        }
+        
+        // Check DOM Classes for OmniboxViewViews
+        if let domClasses = getFocusedElementDOMClasses(), domClasses.contains("OmniboxViewViews") {
+            return true
+        }
+        
+        return false
+    }
+    
+    /// Get current focused element's DOM Classes using Accessibility API
+    /// - Returns: Array of DOM class names, or nil if not available
+    func getFocusedElementDOMClasses() -> [String]? {
+        let systemWide = AXUIElementCreateSystemWide()
+        var focused: CFTypeRef?
+        
+        if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+           let el = focused {
+            let axEl = el as! AXUIElement
+            var domClassRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(axEl, "AXDOMClassList" as CFString, &domClassRef) == .success,
+               let classes = domClassRef as? [String] {
+                return classes
+            }
         }
         
         return nil
@@ -949,11 +1094,32 @@ class AppBehaviorDetector {
         }
         
         // Browser apps - check if in address bar
-        if Self.browserApps.contains(bundleId) {
-            let role = getFocusedElementRole()
-            if role == "AXTextField" || role == "AXComboBox" || role == "AXSearchField" {
+        let isBrowserApp = Self.browserApps.contains(bundleId)
+            || Self.firefoxBasedBrowsers.contains(bundleId)
+            || Self.axAttributeDetectForBrowsers.contains(bundleId)
+        if isBrowserApp {
+            // Safari: Use AX Identifier for accurate detection (avoids web content inputs)
+            if bundleId == "com.apple.Safari" || bundleId == "com.apple.SafariTechnologyPreview" {
+                if isSafariAddressBar() {
+                    return .browserAddressBar
+                }
+                return .standard
+            }
+            
+            // Firefox-style address bar (detected via DOM ID or AX Description)
+            if Self.firefoxBasedBrowsers.contains(bundleId) || Self.axAttributeDetectForBrowsers.contains(bundleId) {
+                if isFirefoxStyleAddressBar() {
+                    return .browserAddressBar
+                }
+                return .standard
+            }
+            
+            // Chromium-based browsers: Use AX Description for accurate detection
+            // This matches "Address and search bar" which is Chrome's Omnibox identifier
+            if isChromiumAddressBar() {
                 return .browserAddressBar
             }
+            
             // Browser content area - treat as standard
             return .standard
         }
@@ -1056,6 +1222,18 @@ class AppBehaviorDetector {
     /// 2. The detection logic (string comparisons, Set lookups) is very fast
     /// 3. Simpler code without cache = fewer bugs
     func detectInjectionMethod() -> InjectionMethodInfo {
+        // Priority 0: Check force override (set by Injection Test)
+        if let forcedMethod = forceInjectionMethod {
+            let delays = forceDelays ?? getDefaultDelays(for: forcedMethod)
+            let textMethod = forceTextSendingMethod ?? .chunked
+            return InjectionMethodInfo(
+                method: forcedMethod,
+                delays: delays,
+                textSendingMethod: textMethod,
+                description: "Forced Override (\(forcedMethod.displayName))"
+            )
+        }
+        
         guard let bundleId = getCurrentBundleId() else {
             return .defaultFast
         }
@@ -1075,6 +1253,7 @@ class AppBehaviorDetector {
                 case .slow: delays = (3000, 6000, 3000)
                 case .selection: delays = (1000, 3000, 2000)
                 case .autocomplete: delays = (1000, 3000, 1000)
+                case .axDirect: delays = (1000, 3000, 2000)
                 }
             }
 
@@ -1091,6 +1270,17 @@ class AppBehaviorDetector {
 
         // Priority 2: Fall back to bundle ID based detection
         return getInjectionMethod(for: bundleId, role: currentRole)
+    }
+    
+    /// Get default delays for an injection method
+    private func getDefaultDelays(for method: InjectionMethod) -> InjectionDelays {
+        switch method {
+        case .fast: return (1000, 3000, 1500)
+        case .slow: return (3000, 6000, 3000)
+        case .selection: return (1000, 3000, 2000)
+        case .autocomplete: return (1000, 3000, 1000)
+        case .axDirect: return (1000, 3000, 2000)
+        }
     }
 
     private func getInjectionMethod(for bundleId: String, role: String?) -> InjectionMethodInfo {
@@ -1155,8 +1345,51 @@ class AppBehaviorDetector {
                 description: "Alfred"
             )
         }
-        
-        // Browser address bars
+
+        // Browsers with AX attribute-based address bar detection (Zen-like)
+        // Address bar detected via AX Description: "Search with xx or enter address"
+        // Only use axDirect for address bar, content area uses default fast method
+        if Self.axAttributeDetectForBrowsers.contains(bundleId) {
+            if isFirefoxStyleAddressBar() {
+                return InjectionMethodInfo(
+                    method: .axDirect,
+                    delays: (1000, 3000, 2000),
+                    textSendingMethod: .chunked,
+                    description: "Zen-style Address Bar"
+                )
+            }
+            // Content area - use default fast method
+            return InjectionMethodInfo(
+                method: .fast,
+                delays: (1000, 3000, 1500),
+                textSendingMethod: .chunked,
+                description: "Zen Browser Content"
+            )
+        }
+
+        // Firefox-based browsers - special handling for content area vs address bar
+        // Address bar (AXTextField): use selection method
+        // Content area (AXWindow): use axDirect method (AX API to set text directly)
+        // Note: Selection method in content area interferes with mouse word selection
+        if Self.firefoxBasedBrowsers.contains(bundleId) {
+            if role == "AXTextField" {
+                return InjectionMethodInfo(
+                    method: .selection,
+                    delays: (1000, 3000, 2000),
+                    textSendingMethod: .chunked,
+                    description: "Firefox Address Bar"
+                )
+            } else if role == "AXWindow" {
+                return InjectionMethodInfo(
+                    method: .axDirect,
+                    delays: (1000, 3000, 2000),
+                    textSendingMethod: .chunked,
+                    description: "Firefox Content Area"
+                )
+            }
+        }
+
+        // Browser address bars (non-Firefox)
         if Self.browserApps.contains(bundleId) && role == "AXTextField" {
             return InjectionMethodInfo(
                 method: .selection,
@@ -1165,7 +1398,7 @@ class AppBehaviorDetector {
                 description: "Browser Address Bar"
             )
         }
-        
+
         // JetBrains IDEs
         if bundleId.hasPrefix("com.jetbrains") {
             if role == "AXTextField" {
@@ -1250,6 +1483,8 @@ extension AppBehaviorDetector {
     var isBrowser: Bool {
         guard let bundleId = getCurrentBundleId() else { return false }
         return Self.browserApps.contains(bundleId)
+            || Self.firefoxBasedBrowsers.contains(bundleId)
+            || Self.axAttributeDetectForBrowsers.contains(bundleId)
     }
     
     /// Check if current app has marked text issues

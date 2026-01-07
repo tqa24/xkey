@@ -239,11 +239,6 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return false
         }
 
-        // Only process key down events
-        guard type == .keyDown else {
-            return false
-        }
-
         // Don't process if Command is pressed
         if event.isCommandPressed {
             engine.reset()

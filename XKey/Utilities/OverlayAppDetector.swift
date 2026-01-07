@@ -151,7 +151,14 @@ class OverlayAppDetector {
             }
         }
 
-        // Check AX Placeholder
+        // Check AX Identifier for Spotlight (most reliable - persists even when user types)
+        if let identifier = getAXStringAttribute(axElement, attribute: kAXIdentifierAttribute) {
+            if identifier == "SpotlightSearchField" {
+                return "Spotlight"
+            }
+        }
+        
+        // Check AX Placeholder (fallback for Spotlight - only visible when input is empty)
         if let placeholder = getAXStringAttribute(axElement, attribute: kAXPlaceholderValueAttribute) {
             for pattern in Self.axPlaceholderPatterns {
                 if placeholder.contains(pattern) {

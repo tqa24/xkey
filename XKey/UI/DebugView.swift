@@ -19,6 +19,7 @@ struct DebugView: View {
     enum DebugTab: String, CaseIterable {
         case log = "Log"
         case textTest = "Text Test"
+        case injectionTest = "Injection Test"
     }
     
     enum LogLevel: String, CaseIterable {
@@ -81,7 +82,7 @@ struct DebugView: View {
                         selectedTab = tab
                     } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: tab == .log ? "doc.text" : "textformat.abc")
+                            Image(systemName: tab == .log ? "doc.text" : (tab == .textTest ? "textformat.abc" : "play.circle"))
                                 .font(.system(size: 11))
                             Text(tab.rawValue)
                                 .font(.system(size: 12, weight: selectedTab == tab ? .semibold : .regular))
@@ -129,6 +130,10 @@ struct DebugView: View {
             case .textTest:
                 // Text Test Tab
                 TextTestTabView(viewModel: viewModel)
+                
+            case .injectionTest:
+                // Injection Test Tab
+                InjectionTestTabView(viewModel: viewModel)
             }
         }
         .frame(width: 900, height: 650)
@@ -580,6 +585,38 @@ struct TextTestTabView: View {
                             InfoRow(label: "AX RoleDescription", value: viewModel.focusedInputRoleDescription)
                             InfoRow(label: "AX Description", value: viewModel.focusedInputDescription)
                             InfoRow(label: "AX Placeholder", value: viewModel.focusedInputPlaceholder)
+                            InfoRow(label: "AX Title", value: viewModel.focusedInputTitle)
+                            InfoRow(label: "AX Identifier", value: viewModel.focusedInputIdentifier)
+                        }
+                        
+                        // Web Content Info (shown if available)
+                        if !viewModel.focusedInputDOMId.isEmpty || !viewModel.focusedInputDOMClasses.isEmpty {
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Web Content")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                
+                                InfoRow(label: "DOM ID", value: viewModel.focusedInputDOMId)
+                                InfoRow(label: "DOM Classes", value: viewModel.focusedInputDOMClasses)
+                            }
+                        }
+                        
+                        // Actions (shown if available)
+                        if !viewModel.focusedInputActions.isEmpty {
+                            Divider()
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Actions")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.secondary)
+                                
+                                Text(viewModel.focusedInputActions)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
                         
                         Divider()
@@ -713,6 +750,418 @@ struct TextTestEditor: NSViewRepresentable {
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.text = textView.string
+        }
+    }
+}
+
+// MARK: - Injection Test Tab View
+
+struct InjectionTestTabView: View {
+    @ObservedObject var viewModel: DebugViewModel
+    
+    /// Computed button text based on state
+    private var primaryButtonText: String {
+        switch viewModel.injectionTestState {
+        case .idle:
+            return "Run Test"
+        case .preparingInput:
+            return "Countdown (\(viewModel.injectionTestCountdown))"
+        case .typing:
+            return "Typing..."
+        case .preparingVerify:
+            return "Verifying in \(viewModel.injectionTestCountdown)..."
+        case .verifying:
+            return "Verifying..."
+        case .passed:
+            return "Test Passed!"
+        case .failed:
+            return "Test Failed"
+        case .completed:
+            return "All Methods Tested"
+        case .paused:
+            return "Resume"
+        }
+    }
+    
+    /// Computed button color
+    private var primaryButtonColor: Color {
+        switch viewModel.injectionTestState {
+        case .idle: return .blue
+        case .preparingInput: return .orange
+        case .typing: return .gray
+        case .preparingVerify: return .purple
+        case .verifying: return .gray
+        case .passed: return .green
+        case .failed: return .red
+        case .completed: return .gray
+        case .paused: return .green
+        }
+    }
+    
+    /// Whether primary button is enabled
+    private var primaryButtonEnabled: Bool {
+        switch viewModel.injectionTestState {
+        case .idle, .preparingInput, .passed, .failed, .completed, .paused:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            // Left Panel - Input & Controls (Scrollable)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Title & Description
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Injection Method Test")
+                            .font(.system(size: 14, weight: .semibold))
+                        
+                        Text("Test if XKey injection works correctly in any app")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                
+                Divider()
+                
+                // Input Keys Field
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Input Keys")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    TextField("e.g., a + s + n + h", text: $viewModel.injectionTestInput)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13, design: .monospaced))
+                        .disabled(viewModel.injectionTestState != .idle && 
+                                  viewModel.injectionTestState != .passed &&
+                                  viewModel.injectionTestState != .failed &&
+                                  viewModel.injectionTestState != .completed)
+                    
+                    Text("Type characters directly. Example: 'asnh', 'xin chaof'")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                
+                // Expected Result Field
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Expected Result")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    TextField("e.g., ánh", text: $viewModel.injectionTestExpected)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 13, design: .monospaced))
+                        .disabled(viewModel.injectionTestState != .idle && 
+                                  viewModel.injectionTestState != .passed &&
+                                  viewModel.injectionTestState != .failed &&
+                                  viewModel.injectionTestState != .completed)
+                }
+                
+                Divider()
+                
+                // Injection Method Picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Injection Method")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $viewModel.injectionTestCurrentMethod) {
+                        ForEach(viewModel.injectionMethodsToTest, id: \.self) { method in
+                            Text(method.displayName).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(viewModel.injectionTestState != .idle && 
+                              viewModel.injectionTestState != .passed &&
+                              viewModel.injectionTestState != .failed &&
+                              viewModel.injectionTestState != .completed)
+                    
+                    Text(viewModel.injectionTestCurrentMethod.description)
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                // Text Sending Method Picker
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Text Sending")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $viewModel.injectionTestTextSendingMethod) {
+                        ForEach(TextSendingMethod.allCases, id: \.self) { method in
+                            Text(method.displayName).tag(method)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .disabled(viewModel.injectionTestState != .idle && 
+                              viewModel.injectionTestState != .passed &&
+                              viewModel.injectionTestState != .failed &&
+                              viewModel.injectionTestState != .completed)
+                }
+                
+                // Advanced Options (collapsible)
+                DisclosureGroup(
+                    isExpanded: $viewModel.injectionTestShowAdvanced
+                ) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        // Backspace Delay
+                        HStack {
+                            Text("Backspace delay:")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .frame(width: 100, alignment: .leading)
+                            TextField("", value: $viewModel.injectionTestDelayBackspace, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
+                            Text("µs")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Wait Delay
+                        HStack {
+                            Text("Wait delay:")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .frame(width: 100, alignment: .leading)
+                            TextField("", value: $viewModel.injectionTestDelayWait, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
+                            Text("µs")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Text Delay
+                        HStack {
+                            Text("Text delay:")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                                .frame(width: 100, alignment: .leading)
+                            TextField("", value: $viewModel.injectionTestDelayText, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 70)
+                            Text("µs")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        Text("1000µs = 1ms. Increase delay if characters are lost.")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                        
+                        Divider()
+                            .padding(.vertical, 4)
+                        
+                        // Auto Clear Toggle
+                        Toggle(isOn: $viewModel.injectionTestAutoClear) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Auto Clear Text")
+                                    .font(.system(size: 10))
+                                Text("Clear text after fail to test next method")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .toggleStyle(.checkbox)
+                    }
+                    .padding(.top, 4)
+                    .disabled(viewModel.injectionTestState != .idle && 
+                              viewModel.injectionTestState != .passed &&
+                              viewModel.injectionTestState != .failed &&
+                              viewModel.injectionTestState != .completed)
+                } label: {
+                    Text("Advanced Options")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                
+                Divider()
+                
+                // Action Buttons
+                VStack(spacing: 10) {
+                    // Primary Button (Run/Resume/Stop)
+                    Button {
+                        switch viewModel.injectionTestState {
+                        case .idle, .passed, .failed, .completed:
+                            viewModel.startInjectionTest()
+                        case .preparingInput, .preparingVerify:
+                            // During countdown, primary button stops the test
+                            viewModel.stopInjectionTest()
+                        case .paused:
+                            viewModel.resumeInjectionTest()
+                        default:
+                            break
+                        }
+                    } label: {
+                        HStack {
+                            if viewModel.injectionTestState == .preparingInput || viewModel.injectionTestState == .preparingVerify {
+                                Image(systemName: "stop.fill")
+                            } else if viewModel.injectionTestState == .typing || viewModel.injectionTestState == .verifying {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 14, height: 14)
+                            } else if viewModel.injectionTestState == .passed {
+                                Image(systemName: "checkmark.circle.fill")
+                            } else if viewModel.injectionTestState == .failed {
+                                Image(systemName: "xmark.circle.fill")
+                            } else if viewModel.injectionTestState == .paused {
+                                Image(systemName: "play.circle.fill")
+                            } else {
+                                Image(systemName: "play.fill")
+                            }
+                            
+                            Text(viewModel.injectionTestState == .preparingInput || viewModel.injectionTestState == .preparingVerify ? "Stop" : primaryButtonText)
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(viewModel.injectionTestState == .preparingInput || viewModel.injectionTestState == .preparingVerify ? Color.red : primaryButtonColor)
+                        )
+                        .foregroundColor(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!primaryButtonEnabled)
+                    
+                    // Pause Button (only during countdown)
+                    if viewModel.injectionTestState == .preparingInput || viewModel.injectionTestState == .preparingVerify {
+                        Button {
+                            viewModel.pauseInjectionTest()
+                        } label: {
+                            HStack {
+                                Image(systemName: "pause.fill")
+                                Text("Pause (\(viewModel.injectionTestCountdown)s)")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Color.orange)
+                            )
+                            .foregroundColor(.white)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    // Clear & Reset Button
+                    if !viewModel.injectionTestLog.isEmpty {
+                        Button {
+                            viewModel.injectionTestLog.removeAll()
+                            viewModel.injectionTestResult = ""
+                            if viewModel.injectionTestState == .passed || 
+                               viewModel.injectionTestState == .failed ||
+                               viewModel.injectionTestState == .completed ||
+                               viewModel.injectionTestState == .paused {
+                                viewModel.injectionTestState = .idle
+                            }
+                        } label: {
+                            Text("Clear & Reset")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                
+                Spacer()
+            }  // VStack
+            }  // ScrollView
+            .padding()
+            .frame(width: 300)
+            
+            Divider()
+            
+            // Right Panel - Log Output
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Test Log")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // Copy Log Button
+                    if !viewModel.injectionTestLog.isEmpty {
+                        Button {
+                            let logText = viewModel.injectionTestLog.joined(separator: "\n")
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(logText, forType: .string)
+                        } label: {
+                            HStack(spacing: 2) {
+                                Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 9))
+                                Text("Copy")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    
+                    Button {
+                        viewModel.injectionTestLog.removeAll()
+                    } label: {
+                        Text("Clear")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            ForEach(Array(viewModel.injectionTestLog.enumerated()), id: \.offset) { index, line in
+                                Text(line)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(lineColor(for: line))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .id(index)
+                            }
+                        }
+                        .padding(8)
+                    }
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                    )
+                    .onChange(of: viewModel.injectionTestLog.count) { newCount in
+                        if newCount > 0 {
+                            withAnimation(.easeOut(duration: 0.1)) {
+                                proxy.scrollTo(newCount - 1, anchor: .bottom)
+                            }
+                        }
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+    
+    /// Get color for log line based on content
+    private func lineColor(for line: String) -> Color {
+        if line.contains("[OK]") || line.contains("PASSED") {
+            return .green
+        } else if line.contains("[FAIL]") || line.contains("FAILED") || line.contains("[ERROR]") {
+            return .red
+        } else if line.contains("===") {
+            return .blue
+        } else if line.starts(with: "[") && line.contains("]") && line.first != "[" {
+            return .orange
+        } else {
+            return .primary
         }
     }
 }

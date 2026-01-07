@@ -539,6 +539,7 @@ struct RuleRowView: View {
         case .slow: return "Slow"
         case .selection: return "Select"
         case .autocomplete: return "Auto"
+        case .axDirect: return "AX"
         }
     }
     
@@ -715,14 +716,20 @@ struct AddRuleSheet: View {
                             Toggle("Ghi đè Injection Method", isOn: $overrideInjection)
                             
                             if overrideInjection {
-                                Picker("Method:", selection: $injectionMethod) {
-                                    Text("Fast").tag(InjectionMethod.fast)
-                                    Text("Slow").tag(InjectionMethod.slow)
-                                    Text("Selection").tag(InjectionMethod.selection)
-                                    Text("Autocomplete").tag(InjectionMethod.autocomplete)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Picker("Method:", selection: $injectionMethod) {
+                                        ForEach(InjectionMethod.allCases, id: \.self) { method in
+                                            Text(method.displayName).tag(method)
+                                        }
+                                    }
+                                    .frame(width: 200)
+                                    .padding(.leading, 20)
+
+                                    Text(injectionMethod.description)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 20)
                                 }
-                                .frame(width: 200)
-                                .padding(.leading, 20)
                                 
                                 // Injection delays (inside overrideInjection)
                                 Toggle("Tùy chỉnh Injection Delays", isOn: $overrideDelays)

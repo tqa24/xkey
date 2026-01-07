@@ -74,6 +74,7 @@
 		A1000009 /* EventTapManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* EventTapManager.swift */; };
 		A100000A /* CharacterInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000A /* CharacterInjector.swift */; };
 		A100000B /* KeyboardEventHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000B /* KeyboardEventHandler.swift */; };
+		A100000C /* AdvancedInjectionMethods.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000C /* AdvancedInjectionMethods.swift */; };
 		AA51E2E403268ACC6EF82BA4 /* TempOffToolbarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE2F92D3911EB5987686864 /* TempOffToolbarViewModel.swift */; };
 		APPVERSION001 /* AppVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = APPVERSION002 /* AppVersion.swift */; };
 		BD23C4DFC4585965C86E2B51 /* BackupRestoreSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69901F64AACBE0FBAC7C0E0F /* BackupRestoreSection.swift */; };
@@ -154,6 +155,7 @@
 		A2000009 /* EventTapManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventTapManager.swift; sourceTree = "<group>"; };
 		A200000A /* CharacterInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterInjector.swift; sourceTree = "<group>"; };
 		A200000B /* KeyboardEventHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardEventHandler.swift; sourceTree = "<group>"; };
+		A200000C /* AdvancedInjectionMethods.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedInjectionMethods.swift; sourceTree = "<group>"; };
 		A3000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A3000002 /* XKey.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XKey.entitlements; sourceTree = "<group>"; };
 		A7801294053CCB45DE7232D2 /* VNEngineSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VNEngineSettings.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				A2000009 /* EventTapManager.swift */,
 				A200000A /* CharacterInjector.swift */,
 				A200000B /* KeyboardEventHandler.swift */,
+				A200000C /* AdvancedInjectionMethods.swift */,
 				4EE4B88BB1709FA867C406CE /* KeyCodeToCharacter.swift */,
 			);
 			path = EventHandling;
@@ -542,6 +545,7 @@
 				1095C4D72EFB016B00C03826 /* VNDictionaryManager.swift in Sources */,
 				A100000A /* CharacterInjector.swift in Sources */,
 				A100000B /* KeyboardEventHandler.swift in Sources */,
+				A100000C /* AdvancedInjectionMethods.swift in Sources */,
 				101A44482ED419AE003F9D05 /* Preferences.swift in Sources */,
 				48B758BE0BDCAB95CFBADD3D /* VNEngineSettings.swift in Sources */,
 				564995EF131811377C4F3FF6 /* VNEngineAdvanced.swift in Sources */,
