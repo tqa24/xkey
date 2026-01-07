@@ -576,10 +576,59 @@ class DebugViewModel: ObservableObject {
         // Get focused element info via AX API
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
-        
-        guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
-              let focusedElement = focusedRef else {
+
+        let axError = AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef)
+
+        guard axError == .success, let focusedElement = focusedRef else {
+            // Log detailed error info for debugging
+            let (errorName, errorDesc): (String, String)
+            switch axError {
+            case .success:
+                (errorName, errorDesc) = ("success", "Success")
+            case .failure:
+                (errorName, errorDesc) = ("failure", "General failure - app may not support AX")
+            case .illegalArgument:
+                (errorName, errorDesc) = ("illegalArgument", "Invalid argument")
+            case .invalidUIElement:
+                (errorName, errorDesc) = ("invalidUIElement", "Element no longer exists")
+            case .invalidUIElementObserver:
+                (errorName, errorDesc) = ("invalidUIElementObserver", "Invalid observer")
+            case .cannotComplete:
+                (errorName, errorDesc) = ("cannotComplete", "App is busy or not responding - try again later")
+            case .attributeUnsupported:
+                (errorName, errorDesc) = ("attributeUnsupported", "App does not support this attribute")
+            case .actionUnsupported:
+                (errorName, errorDesc) = ("actionUnsupported", "App does not support this action")
+            case .notificationUnsupported:
+                (errorName, errorDesc) = ("notificationUnsupported", "App does not support notifications")
+            case .notImplemented:
+                (errorName, errorDesc) = ("notImplemented", "Feature not implemented")
+            case .notificationAlreadyRegistered:
+                (errorName, errorDesc) = ("notificationAlreadyRegistered", "Notification already registered")
+            case .notificationNotRegistered:
+                (errorName, errorDesc) = ("notificationNotRegistered", "Notification not registered")
+            case .apiDisabled:
+                (errorName, errorDesc) = ("apiDisabled", "⚠️ Accessibility API disabled - grant permission in System Settings")
+            case .noValue:
+                (errorName, errorDesc) = ("noValue", "No element is focused (normal if not clicking on a text field)")
+            case .parameterizedAttributeUnsupported:
+                (errorName, errorDesc) = ("parameterizedAttributeUnsupported", "Parameterized attribute not supported")
+            case .notEnoughPrecision:
+                (errorName, errorDesc) = ("notEnoughPrecision", "Not enough precision")
+            @unknown default:
+                (errorName, errorDesc) = ("unknown(\(axError.rawValue))", "Unknown error")
+            }
+
+            // Also check AXIsProcessTrusted
+            let isTrusted = AXIsProcessTrusted()
+            let trustDesc = isTrusted
+                ? "✅ Accessibility permission granted"
+                : "❌ No permission - go to System Settings → Privacy & Security → Accessibility"
+
             addAppDetectorLog("  → Focused Element: (none)")
+            addAppDetectorLog("  → AXError: \(errorName)")
+            addAppDetectorLog("  → Description: \(errorDesc)")
+            addAppDetectorLog("  → AXIsProcessTrusted: \(isTrusted) - \(trustDesc)")
             return
         }
         

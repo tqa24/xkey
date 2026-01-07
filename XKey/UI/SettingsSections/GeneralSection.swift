@@ -71,6 +71,17 @@ struct GeneralSection: View {
                         }
                     }
                 }
+
+                // Đặt dấu
+                SettingsGroup(title: "Đặt dấu") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Đặt dấu tự do (Free Mark)", isOn: $viewModel.preferences.freeMarkEnabled)
+
+                        Text("Cho phép thêm dấu ở bất kỳ vị trí nào trong từ thay vì phải thêm dấu ngay tại chữ đang gõ (a+n+h+s hoặc a+s+n+h)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 
                 // Code Table
                 SettingsGroup(title: "Bảng mã") {
@@ -96,7 +107,7 @@ struct GeneralSection: View {
                         Toggle("Kiểu gõ hiện đại (oà/uý)", isOn: $viewModel.preferences.modernStyle)
                         Toggle("Sửa lỗi tự động hoàn thành (áp dụng cho Chrome, Terminal...)", isOn: $viewModel.preferences.fixAutocomplete)
                     }
-                }
+                }                
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()

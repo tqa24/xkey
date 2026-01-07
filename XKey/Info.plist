@@ -21,7 +21,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.2.18</string>
 	<key>CFBundleVersion</key>
-	<string>20260107</string>
+	<string>20260107.1</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -33,7 +33,7 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>XKey needs to monitor keyboard events to provide Vietnamese input method.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2024 XKey. All rights reserved.</string>
+	<string>Copyright © 2026 XKey. All rights reserved.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSAppTransportSecurity</key>

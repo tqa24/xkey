@@ -148,17 +148,7 @@ struct AdvancedSection: View {
                         }
                     }
                 }
-                
-                SettingsGroup(title: "Đặt dấu") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Đặt dấu tự do (Free Mark)", isOn: $viewModel.preferences.freeMarkEnabled)
-                        
-                        Text("Cho phép đặt dấu ở bất kỳ vị trí nào trong từ")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
+
                 SettingsGroup(title: "Công cụ điều khiển") {
                     VStack(alignment: .leading, spacing: 12) {
                         // Main toggle to enable toolbar
