@@ -91,7 +91,15 @@ class StatusBarManager: ObservableObject {
                 self?.rebuildMenu()
             }
             .store(in: &cancellables)
-        
+
+        viewModel.$debugModeEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                self?.log("🐛 Debug mode changed to \(enabled)")
+                self?.updateMenu()
+            }
+            .store(in: &cancellables)
+
         log("Status bar setup complete")
     }
     
@@ -185,6 +193,15 @@ class StatusBarManager: ObservableObject {
         )
         convertItem.target = self
         
+        let debugTitle = viewModel.debugModeEnabled ? "Tắt Debug Window" : "Mở Debug Window..."
+        let debugItem = menu.addItem(
+            withTitle: debugTitle,
+            action: #selector(toggleDebugWindow),
+            keyEquivalent: ""
+        )
+        debugItem.target = self
+        debugItem.tag = 100  // Tag for debug item
+        
         menu.addItem(.separator())
         
         // Check for Updates
@@ -261,6 +278,11 @@ class StatusBarManager: ObservableObject {
                 }
             }
         }
+
+        // Update debug window menu item
+        if let debugItem = menu.item(withTag: 100) {
+            debugItem.title = viewModel.debugModeEnabled ? "Tắt Debug Window" : "Mở Debug Window..."
+        }
     }
     
     @objc private func toggleVietnamese() {
@@ -311,6 +333,14 @@ class StatusBarManager: ObservableObject {
     
     @objc private func openConvertTool() {
         viewModel.openConvertTool()
+    }
+    
+    @objc private func openDebugWindow() {
+        viewModel.openDebugWindow()
+    }
+
+    @objc private func toggleDebugWindow() {
+        viewModel.onToggleDebugWindow?()
     }
     
     @objc private func checkForUpdates() {

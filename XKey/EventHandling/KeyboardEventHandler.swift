@@ -223,6 +223,75 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
         }
     }
     
+    // MARK: - Undo Typing
+    
+    /// Perform undo typing operation when triggered by EventTapManager hotkey callback
+    /// Returns true if undo was performed (event should be consumed), false otherwise
+    func performUndoTyping() -> Bool {
+        guard undoTypingEnabled else { return false }
+        guard engine.canUndoTyping() else { return false }
+        
+        let result = engine.undoTyping()
+        guard result.shouldConsume else { return false }
+        
+        // Build the replacement text
+        var replacementText = ""
+        for vnChar in result.newCharacters {
+            replacementText += vnChar.unicode(codeTable: codeTable)
+        }
+        
+        debugLogCallback?("🔙 Undo typing: backspaces=\(result.backspaceCount), text=\"\(replacementText)\"")
+        
+        // Use privateState to isolate from system event state (same as CharacterInjector)
+        guard let source = CGEventSource(stateID: .privateState) else {
+            debugLogCallback?("🔙 Failed to create event source")
+            return false
+        }
+        
+        // Step 1: Send backspaces
+        if result.backspaceCount > 0 {
+            for i in 0..<result.backspaceCount {
+                if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: true),
+                   let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x33, keyDown: false) {
+                    keyDown.setIntegerValueField(.eventSourceUserData, value: kXKeyEventMarker)
+                    keyUp.setIntegerValueField(.eventSourceUserData, value: kXKeyEventMarker)
+                    keyDown.post(tap: .cgSessionEventTap)
+                    keyUp.post(tap: .cgSessionEventTap)
+                    debugLogCallback?("🔙   Backspace \(i + 1)/\(result.backspaceCount)")
+                }
+                // Small delay between backspaces
+                usleep(3000)  // 3ms
+            }
+            // Wait after backspaces
+            usleep(10000)  // 10ms
+        }
+        
+        // Step 2: Send replacement characters
+        if !replacementText.isEmpty {
+            // Send text in one chunk using keyboardSetUnicodeString
+            var utf16Chars = Array(replacementText.utf16)
+            
+            if let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
+               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) {
+                keyDown.keyboardSetUnicodeString(stringLength: utf16Chars.count, unicodeString: &utf16Chars)
+                keyUp.keyboardSetUnicodeString(stringLength: utf16Chars.count, unicodeString: &utf16Chars)
+                
+                keyDown.setIntegerValueField(.eventSourceUserData, value: kXKeyEventMarker)
+                keyUp.setIntegerValueField(.eventSourceUserData, value: kXKeyEventMarker)
+                
+                keyDown.post(tap: .cgSessionEventTap)
+                keyUp.post(tap: .cgSessionEventTap)
+                
+                debugLogCallback?("🔙   Sent text: \"\(replacementText)\"")
+            }
+        }
+        
+        // Mark new session after undo, preserve mid-sentence state
+        injector.markNewSession(preserveMidSentence: true)
+        
+        return true
+    }
+    
     // MARK: - EventTapDelegate
     
     func shouldProcessEvent(_ event: CGEvent, type: CGEventType) -> Bool {
@@ -239,32 +308,38 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return false
         }
 
-        // Don't process if Command is pressed
-        if event.isCommandPressed {
-            engine.reset()
-            // Cmd + Arrow keys move cursor, so mark as mid-sentence
-            // For other Cmd shortcuts, Forward Delete protection is handled by
-            // CharacterInjector.shouldSendForwardDelete() which uses AX API to
-            // check if there's text after cursor before sending Forward Delete
-            let keyCode = event.keyCode
-            let cursorMovementKeys: [CGKeyCode] = [0x7B, 0x7C, 0x7D, 0x7E, 0x73, 0x77, 0x74, 0x79] // Arrow keys, Home, End, Page Up/Down
-            let isCursorMovement = cursorMovementKeys.contains(keyCode)
-            injector.markNewSession(cursorMoved: isCursorMovement)
-            return false
-        }
+        // For keyDown events, check modifier keys and skip processing if pressed
+        // IMPORTANT: Only reset engine for keyDown events, NOT for flagsChanged events
+        // For flagsChanged (modifier-only hotkeys like Ctrl+Shift for undo), we don't want
+        // to reset the engine because that would clear the undo buffer
+        if type == .keyDown {
+            // Don't process if Command is pressed
+            if event.isCommandPressed {
+                engine.reset()
+                // Cmd + Arrow keys move cursor, so mark as mid-sentence
+                // For other Cmd shortcuts, Forward Delete protection is handled by
+                // CharacterInjector.shouldSendForwardDelete() which uses AX API to
+                // check if there's text after cursor before sending Forward Delete
+                let keyCode = event.keyCode
+                let cursorMovementKeys: [CGKeyCode] = [0x7B, 0x7C, 0x7D, 0x7E, 0x73, 0x77, 0x74, 0x79] // Arrow keys, Home, End, Page Up/Down
+                let isCursorMovement = cursorMovementKeys.contains(keyCode)
+                injector.markNewSession(cursorMoved: isCursorMovement)
+                return false
+            }
 
-        // Don't process if Option is pressed (used for special characters like ø, å, etc.)
-        if event.isOptionPressed {
-            engine.reset()
-            injector.markNewSession(preserveMidSentence: true)
-            return false
-        }
+            // Don't process if Option is pressed (used for special characters like ø, å, etc.)
+            if event.isOptionPressed {
+                engine.reset()
+                injector.markNewSession(preserveMidSentence: true)
+                return false
+            }
 
-        // Don't process if Ctrl is pressed (used for control shortcuts)
-        if event.isControlPressed {
-            engine.reset()
-            injector.markNewSession(preserveMidSentence: true)
-            return false
+            // Don't process if Ctrl is pressed (used for control shortcuts)
+            if event.isControlPressed {
+                engine.reset()
+                injector.markNewSession(preserveMidSentence: true)
+                return false
+            }
         }
 
         return true
@@ -316,35 +391,9 @@ class KeyboardEventHandler: EventTapManager.EventTapDelegate {
             return event
         }
 
-        // Handle Escape key - undo typing if enabled
-        if keyCode == 0x35 { // Escape
-            // Only handle undo if setting is enabled
-            if undoTypingEnabled {
-                // Check if undo is available
-                if engine.canUndoTyping() {
-                    let result = engine.undoTyping()
-
-                    if result.shouldConsume {
-                        // Use synchronized injection to replace Vietnamese text with raw keystrokes
-                        injector.injectSync(
-                            backspaceCount: result.backspaceCount,
-                            characters: result.newCharacters,
-                            codeTable: codeTable,
-                            proxy: proxy,
-                            fixAutocomplete: false
-                        )
-
-                        // Mark new session after undo, preserve mid-sentence state
-                        injector.markNewSession(preserveMidSentence: true)
-
-                        return nil  // Consume the event
-                    }
-                }
-            }
-
-            // Pass through if undo not enabled or nothing to undo
-            return event
-        }
+        // NOTE: Escape key undo is now handled by EventTapManager (via undoTypingHotkey)
+        // This allows both default Esc and custom hotkeys (like Ctrl+Shift) to work consistently
+        // through the same code path (performUndoTyping callback)
 
         // Handle Forward Delete (Fn+Delete)
         if keyCode == 0x75 { // Forward Delete

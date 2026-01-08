@@ -63,7 +63,7 @@ struct PreferencesView: View {
                     .tag(3)
                 
                 // Tab 4: Input Sources
-                InputSourcesSection()
+                InputSourcesSection(preferencesViewModel: viewModel)
                     .tabItem {
                         Label("Input Sources", systemImage: "globe")
                     }

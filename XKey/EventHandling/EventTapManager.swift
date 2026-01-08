@@ -33,11 +33,16 @@ class EventTapManager {
     var convertToolHotkey: Hotkey?
     var onConvertToolHotkey: (() -> Void)?
 
-    // Note: Undo typing key is handled by KeyboardEventHandler directly
-    // because it needs to check engine state before deciding to consume the key
+    // Undo typing hotkey configuration
+    // Returns true if event should be consumed (undo was performed)
+    var undoTypingHotkey: Hotkey?
+    var onUndoTypingHotkey: (() -> Bool)?
     
-    // Modifier-only hotkey tracking
+    // Modifier-only hotkey tracking (for toggle hotkey)
     private var modifierOnlyState: ModifierOnlyState = ModifierOnlyState()
+    
+    // Modifier-only hotkey tracking (for undo typing hotkey)
+    private var undoModifierOnlyState: ModifierOnlyState = ModifierOnlyState()
     
     private struct ModifierOnlyState {
         var currentModifiers: ModifierFlags = []
@@ -350,10 +355,75 @@ class EventTapManager {
             }
         }
 
-        // Check for undo typing key (single key, no modifiers required)
-        // This is handled by the delegate (KeyboardEventHandler) because it needs
-        // to check if there's something to undo in the engine buffer first.
-        // If there's nothing to undo, the key should be passed through normally.
+        // Check for undo typing hotkey
+        // Skip if user is recording a new hotkey
+        if let hotkey = undoTypingHotkey, !isHotkeyRecording {
+            if hotkey.isModifierOnly {
+                // Handle modifier-only undo hotkey (e.g., Ctrl+Shift)
+                if type == .flagsChanged {
+                    let eventModifiers = ModifierFlags(from: event.flags)
+                    
+                    // Check if all required modifiers are currently pressed
+                    let hasAllRequiredModifiers = hotkey.modifiers.isSubset(of: eventModifiers) &&
+                                                   eventModifiers.intersection([.control, .shift, .option, .command, .function]) == hotkey.modifiers
+                    
+                    if hasAllRequiredModifiers {
+                        // All required modifiers are pressed
+                        if !undoModifierOnlyState.targetModifiersReached {
+                            undoModifierOnlyState.targetModifiersReached = true
+                            undoModifierOnlyState.hasTriggered = false
+                            debugLogCallback?(" → Undo target modifiers REACHED: \(hotkey.displayString)")
+                        }
+                        undoModifierOnlyState.currentModifiers = eventModifiers
+                    } else {
+                        // Modifiers changed (released)
+                        if undoModifierOnlyState.targetModifiersReached && !undoModifierOnlyState.hasTriggered {
+                            // Was holding target modifiers, now released - TRIGGER!
+                            debugLogCallback?(" → UNDO MODIFIER-ONLY HOTKEY TRIGGERED on release: \(hotkey.displayString)")
+                            // Call callback synchronously and check result
+                            if let callback = onUndoTypingHotkey, callback() {
+                                undoModifierOnlyState.hasTriggered = true
+                                debugLogCallback?(" → Undo performed successfully")
+                            } else {
+                                debugLogCallback?(" → Nothing to undo, pass through")
+                            }
+                        }
+                        // Reset state
+                        undoModifierOnlyState.targetModifiersReached = false
+                        undoModifierOnlyState.currentModifiers = eventModifiers
+                    }
+                } else if type == .keyDown {
+                    // If user presses any key while holding modifiers, cancel the modifier-only hotkey
+                    if undoModifierOnlyState.targetModifiersReached {
+                        debugLogCallback?(" → Key pressed while holding modifiers - canceling undo modifier-only hotkey")
+                        undoModifierOnlyState.targetModifiersReached = false
+                        undoModifierOnlyState.hasTriggered = true  // Prevent trigger on release
+                    }
+                }
+                // Don't consume flagsChanged events - let them pass through
+            } else {
+                // Handle regular undo hotkey (e.g., Esc or any key+modifiers)
+                if type == .keyDown {
+                    let eventModifiers = ModifierFlags(from: event.flags)
+                    // For Esc key (keyCode 0x35), modifiers should be empty
+                    // For other keys, check both keyCode and modifiers
+                    let modifiersMatch = hotkey.modifiers.isEmpty ? 
+                        eventModifiers.intersection([.control, .shift, .option, .command]).isEmpty :
+                        eventModifiers == hotkey.modifiers
+                    
+                    if event.keyCode == hotkey.keyCode && modifiersMatch {
+                        debugLogCallback?(" → UNDO TYPING HOTKEY DETECTED: \(hotkey.displayString)")
+                        // Call callback synchronously and check result
+                        if let callback = onUndoTypingHotkey, callback() {
+                            debugLogCallback?(" → Undo performed - consuming event")
+                            return nil  // Consume the event
+                        }
+                        debugLogCallback?(" → Nothing to undo - pass through")
+                        // Fall through to delegate processing
+                    }
+                }
+            }
+        }
 
         // Check if delegate wants to process this event
         guard let delegate = delegate else {

@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct InputSourcesSection: View {
+    @ObservedObject var preferencesViewModel: PreferencesViewModel
     @StateObject private var viewModel = InputSourcesViewModel()
 
     var body: some View {
@@ -39,6 +40,94 @@ struct InputSourcesSection: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                        }
+                    }
+                }
+
+
+                
+                // IMKit Mode (Experimental)
+                SettingsGroup(title: "Input Method Kit (Thử nghiệm)") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Toggle("Bật IMKit Mode", isOn: $preferencesViewModel.preferences.imkitEnabled)
+
+                            Text("Sử dụng Input Method Kit thay vì CGEvent injection. Giúp gõ mượt hơn trong Terminal app và IDE Terminal.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+
+                        if preferencesViewModel.preferences.imkitEnabled {
+                            Divider()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Toggle("Hiển thị gạch chân khi gõ (Khuyến nghị)", isOn: $preferencesViewModel.preferences.imkitUseMarkedText)
+                                    .padding(.leading, 20)
+
+                                Text(preferencesViewModel.preferences.imkitUseMarkedText ?
+                                    "✓ Chuẩn IMKit - Hiển thị gạch chân khi đang gõ. Ổn định và tương thích tốt với mọi ứng dụng." :
+                                    "⚠️ Direct Mode - Không có gạch chân nhưng có thể gặp lỗi thêm dấu/double ký tự trong một số trường hợp trên các app khác nhau. Nếu gặp lỗi như vậy hãy bật tính năng này lên và thử lại.")
+                                    .font(.caption)
+                                    .foregroundColor(preferencesViewModel.preferences.imkitUseMarkedText ? .secondary : .orange)
+                                    .padding(.leading, 20)
+                            }
+                            
+                            Divider()
+                            
+                            // Install XKeyIM button
+                            HStack {
+                                Text("XKeyIM Input Method:")
+                                    .font(.caption)
+                                Spacer()
+                                Button("Cài đặt XKeyIM...") {
+                                    IMKitHelper.installXKeyIM()
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            
+                            Text("Sau khi cài đặt, vào System Settings → Keyboard → Input Sources để thêm XKey Vietnamese")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                            
+                            Divider()
+                            
+                            // Quick switch hotkey
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Phím tắt chuyển nhanh sang XKey:")
+                                        .font(.caption)
+                                    Spacer()
+                                    // Use custom binding for optional hotkey
+                                    HotkeyRecorderView(hotkey: Binding(
+                                        get: { preferencesViewModel.preferences.switchToXKeyHotkey ?? Hotkey(keyCode: 0, modifiers: []) },
+                                        set: { newValue in
+                                            // Set to nil if empty, otherwise save the hotkey
+                                            if newValue.keyCode == 0 && newValue.modifiers.isEmpty {
+                                                preferencesViewModel.preferences.switchToXKeyHotkey = nil
+                                            } else {
+                                                preferencesViewModel.preferences.switchToXKeyHotkey = newValue
+                                            }
+                                        }
+                                    ))
+                                        .frame(width: 150)
+                                }
+                                
+                                Text("Phím tắt này sẽ toggle giữa XKey và ABC. Nếu đang dùng XKey → chuyển sang ABC (hoặc bộ gõ tiếng Anh khác), ngược lại → XKey")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                
+                                // Quick switch button
+                                HStack {
+                                    Button("Chuyển sang XKey ngay") {
+                                        InputSourceSwitcher.shared.switchToXKey()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                    
+                                    Spacer()
+                                }
+                            }
                         }
                     }
                 }

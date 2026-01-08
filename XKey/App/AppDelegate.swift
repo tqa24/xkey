@@ -242,6 +242,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.keyboardHandler?.verboseEngineLogging = isVerbose
                 self?.debugWindowController?.logEvent(isVerbose ? "Verbose engine logging ENABLED (may cause lag)" : "Verbose engine logging DISABLED")
             }
+            
+            // Setup window close callback - disable debug mode when window is closed via Close button
+            debugWindowController?.onWindowClose = { [weak self] in
+                self?.handleDebugWindowClosed()
+            }
         }
     }
 
@@ -348,9 +353,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusBarManager?.viewModel.onOpenConvertTool = { [weak self] in
             self?.openConvertTool()
         }
+        statusBarManager?.viewModel.onOpenDebugWindow = { [weak self] in
+            self?.openDebugWindow()
+        }
+        statusBarManager?.viewModel.onToggleDebugWindow = { [weak self] in
+            self?.toggleDebugWindowFromMenu()
+        }
         statusBarManager?.onCheckForUpdates = { [weak self] in
             self?.checkForUpdates()
         }
+
+        // Sync initial debug mode state
+        let prefs = SharedSettings.shared.loadPreferences()
+        statusBarManager?.viewModel.debugModeEnabled = prefs.debugModeEnabled
         statusBarManager?.setupStatusBar()
     }
     
@@ -411,6 +426,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    func openDebugWindow() {
+        // Enable debug mode in preferences if not already enabled
+        var prefs = SharedSettings.shared.loadPreferences()
+        if !prefs.debugModeEnabled {
+            prefs.debugModeEnabled = true
+            SharedSettings.shared.savePreferences(prefs)
+        }
+        
+        // Enable debug window and show it
+        toggleDebugWindow(enabled: true)
+        
+        // Connect status bar's debugWindowController
+        statusBarManager?.debugWindowController = debugWindowController
+        
+        debugWindowController?.logEvent("🛠️ Debug window opened via menu")
+    }
+    
     private func applyPreferences(_ preferences: Preferences) {
         // Apply basic settings
         keyboardHandler?.inputMethod = preferences.inputMethod
@@ -462,9 +494,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Update switch XKey hotkey
         setupSwitchXKeyHotkey(with: preferences.switchToXKeyHotkey)
         
-        // Update undo typing (Esc key)
+        // Update undo typing
         keyboardHandler?.undoTypingEnabled = preferences.undoTypingEnabled
-        debugWindowController?.logEvent(preferences.undoTypingEnabled ? "Undo typing enabled (Esc key)" : "Undo typing disabled")
+        setupUndoTypingHotkey(with: preferences.undoTypingHotkey, enabled: preferences.undoTypingEnabled)
+        
+        if preferences.undoTypingEnabled {
+            if let hotkey = preferences.undoTypingHotkey {
+                debugWindowController?.logEvent("Undo typing enabled with hotkey: \(hotkey.displayString)")
+            } else {
+                debugWindowController?.logEvent("Undo typing enabled (default: Esc key)")
+            }
+        } else {
+            debugWindowController?.logEvent("Undo typing disabled")
+        }
 
         // Log fix autocomplete setting
         debugWindowController?.logEvent(preferences.fixAutocomplete ? "Fix autocomplete enabled (Forward Delete)" : "Fix autocomplete disabled")
@@ -473,7 +515,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     // MARK: - Debug Window Management
-    
+
+    /// Toggle debug window from menu bar (open if closed, close if open)
+    private func toggleDebugWindowFromMenu() {
+        var prefs = SharedSettings.shared.loadPreferences()
+        let newEnabled = !prefs.debugModeEnabled
+
+        prefs.debugModeEnabled = newEnabled
+        SharedSettings.shared.savePreferences(prefs)
+
+        // Update viewModel
+        statusBarManager?.viewModel.debugModeEnabled = newEnabled
+
+        // Toggle the window
+        toggleDebugWindow(enabled: newEnabled)
+
+        // Connect status bar's debugWindowController if enabled
+        if newEnabled {
+            statusBarManager?.debugWindowController = debugWindowController
+            debugWindowController?.logEvent("🛠️ Debug window opened via menu")
+        }
+    }
+
     private func toggleDebugWindow(enabled: Bool) {
         // Respect the debug mode setting
         if enabled {
@@ -488,6 +551,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.keyboardHandler?.verboseEngineLogging = isVerbose
                     self?.debugWindowController?.logEvent(isVerbose ? "Verbose engine logging ENABLED (may cause lag)" : "Verbose engine logging DISABLED")
                 }
+                // Setup window close callback - disable debug mode when window is closed via Close button
+                debugWindowController?.onWindowClose = { [weak self] in
+                    self?.handleDebugWindowClosed()
+                }
                 debugWindowController?.logEvent("Debug window enabled via settings")
             }
             debugWindowController?.showWindow(nil)
@@ -499,6 +566,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 debugWindowController = nil
             }
         }
+    }
+    
+    /// Handle when debug window is closed via Close button on title bar
+    private func handleDebugWindowClosed() {
+        // Disable debug mode in preferences
+        var prefs = SharedSettings.shared.loadPreferences()
+        prefs.debugModeEnabled = false
+        SharedSettings.shared.savePreferences(prefs)
+
+        // Update viewModel to sync menu
+        statusBarManager?.viewModel.debugModeEnabled = false
+
+        // Cleanup
+        keyboardHandler?.verboseEngineLogging = false
+        debugWindowController = nil
+
+        // Disconnect from DebugLogger
+        DebugLogger.shared.debugWindowController = nil
+
+        // Log to file (window is closing, but file logging still works)
+        DebugLogger.shared.log("🛠️ Debug window closed - Debug mode disabled")
     }
     
     // MARK: - Permissions
@@ -600,6 +688,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         debugWindowController?.logEvent("Toggle hotkey configured: \(hotkey.displayString)")
+    }
+    
+    private func setupUndoTypingHotkey(with hotkey: Hotkey?, enabled: Bool) {
+        // If undo typing is disabled, clear the hotkey
+        guard enabled else {
+            eventTapManager?.undoTypingHotkey = nil
+            eventTapManager?.onUndoTypingHotkey = nil
+            return
+        }
+        
+        // If custom hotkey is set, configure EventTapManager to handle it
+        // Otherwise, default Esc behavior is handled in KeyboardEventHandler
+        if let hotkey = hotkey {
+            eventTapManager?.undoTypingHotkey = hotkey
+            eventTapManager?.onUndoTypingHotkey = { [weak self] in
+                guard let handler = self?.keyboardHandler else { return false }
+                return handler.performUndoTyping()
+            }
+            debugWindowController?.logEvent("Undo typing hotkey configured: \(hotkey.displayString)")
+        } else {
+            // Use default Esc key - set a default Esc hotkey
+            let defaultEscHotkey = Hotkey(keyCode: 0x35, modifiers: [], isModifierOnly: false)
+            eventTapManager?.undoTypingHotkey = defaultEscHotkey
+            eventTapManager?.onUndoTypingHotkey = { [weak self] in
+                guard let handler = self?.keyboardHandler else { return false }
+                return handler.performUndoTyping()
+            }
+            debugWindowController?.logEvent("Undo typing hotkey configured: Esc (default)")
+        }
     }
     
     private func setupReadWordHotkey() {

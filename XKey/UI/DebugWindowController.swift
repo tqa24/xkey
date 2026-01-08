@@ -8,9 +8,12 @@
 import Cocoa
 import SwiftUI
 
-class DebugWindowController: NSWindowController, DebugWindowControllerProtocol {
+class DebugWindowController: NSWindowController, DebugWindowControllerProtocol, NSWindowDelegate {
     
     private let viewModel: DebugViewModel
+    
+    /// Callback when window is closed (via Close button on title bar)
+    var onWindowClose: (() -> Void)?
     
     init() {
         self.viewModel = DebugViewModel()
@@ -35,6 +38,9 @@ class DebugWindowController: NSWindowController, DebugWindowControllerProtocol {
         
         super.init(window: window)
         
+        // Set window delegate to catch close event
+        window.delegate = self
+        
         // Setup always on top callback
         viewModel.alwaysOnTopCallback = { [weak self] isEnabled in
             self?.window?.level = isEnabled ? .floating : .normal
@@ -43,6 +49,14 @@ class DebugWindowController: NSWindowController, DebugWindowControllerProtocol {
         
         // Add pin button to title bar
         setupPinButton()
+    }
+    
+    // MARK: - NSWindowDelegate
+    
+    func windowWillClose(_ notification: Notification) {
+        // User clicked the Close button on title bar
+        // Notify AppDelegate to disable debug mode
+        onWindowClose?()
     }
     
     required init?(coder: NSCoder) {

@@ -16,6 +16,7 @@ class StatusBarViewModel: ObservableObject {
     @Published var hotkeyDisplay = "⌘⇧V"
     @Published var hotkeyKeyEquivalent: KeyEquivalent = "v"
     @Published var hotkeyModifiers: EventModifiers = [.command, .shift]
+    @Published var debugModeEnabled = false
     
     private weak var keyboardHandler: KeyboardEventHandler?
     private weak var eventTapManager: EventTapManager?
@@ -26,6 +27,8 @@ class StatusBarViewModel: ObservableObject {
     var onOpenPreferences: (() -> Void)?
     var onOpenMacroManagement: (() -> Void)?
     var onOpenConvertTool: (() -> Void)?
+    var onOpenDebugWindow: (() -> Void)?
+    var onToggleDebugWindow: (() -> Void)?  // Toggle open/close debug window
     
     init(keyboardHandler: KeyboardEventHandler?, eventTapManager: EventTapManager?) {
         self.keyboardHandler = keyboardHandler
@@ -135,6 +138,10 @@ class StatusBarViewModel: ObservableObject {
     
     func openConvertTool() {
         onOpenConvertTool?()
+    }
+    
+    func openDebugWindow() {
+        onOpenDebugWindow?()
     }
     
     func quit() {

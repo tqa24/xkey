@@ -77,7 +77,7 @@ struct SettingsView: View {
                 case .advanced:
                     AdvancedSection(viewModel: viewModel)
                 case .inputSources:
-                    InputSourcesSection()
+                    InputSourcesSection(preferencesViewModel: viewModel)
                 case .excludedApps:
                     ExcludedAppsSection(viewModel: viewModel)
                 case .macro:

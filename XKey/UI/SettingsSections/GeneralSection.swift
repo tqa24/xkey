@@ -48,10 +48,38 @@ struct GeneralSection: View {
                         
                         Divider()
                         
-                        VStack(alignment: .leading, spacing: 4) {
-                            Toggle("Hoàn tác gõ tiếng Việt bằng phím Esc", isOn: $viewModel.preferences.undoTypingEnabled)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Hoàn tác gõ tiếng Việt", isOn: $viewModel.preferences.undoTypingEnabled)
                             
-                            Text("Nhấn Esc ngay sau khi gõ để hoàn tác việc bỏ dấu (ví dụ: \"tiếng\" → \"tieesng\")")
+                            if viewModel.preferences.undoTypingEnabled {
+                                HStack {
+                                    Text("Phím tắt:")
+                                    Spacer()
+                                    HotkeyRecorderView(
+                                        hotkey: Binding(
+                                            get: { 
+                                                viewModel.preferences.undoTypingHotkey ?? 
+                                                Hotkey(keyCode: 0x35, modifiers: [], isModifierOnly: false) // Default Esc
+                                            },
+                                            set: { newValue in
+                                                // If user sets Esc with no modifiers, treat as default (nil)
+                                                if newValue.keyCode == 0x35 && newValue.modifiers.isEmpty && !newValue.isModifierOnly {
+                                                    viewModel.preferences.undoTypingHotkey = nil
+                                                } else {
+                                                    viewModel.preferences.undoTypingHotkey = newValue
+                                                }
+                                            }
+                                        )
+                                    )
+                                    .frame(width: 150)
+                                }
+                                
+                                Text("Mặc định: Esc. Hỗ trợ tổ hợp phím modifier như Ctrl+Shift")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Text("Nhấn phím tắt ngay sau khi gõ để hoàn tác việc bỏ dấu (ví dụ: \"tiếng\" → \"tieesng\")")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
