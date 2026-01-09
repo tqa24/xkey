@@ -48,6 +48,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// Store Vietnamese state BEFORE Window Rule was applied
     /// Used to restore state when overlay opens
     private var preRuleVietnameseState: Bool? = nil
+    
+    /// Track the last focused element's signature for injection detection
+    /// Used to detect when user switches from web content to address bar, etc.
+    /// Signature includes role, subrole, and description/identifier
+    private var lastFocusedElementSignature: String = ""
 
     // MARK: - Initialization
 
@@ -128,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup input source manager
         setupInputSourceManager()
 
-        // Setup temp off toolbar
+        // Setup temp off toolbar (also handles focus change monitoring for injection detection)
         setupTempOffToolbar()
 
         // Setup convert tool hotkey
@@ -952,6 +957,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             self.debugWindowController?.logEvent("App switched - engine reset, mid-sentence mode")
             self.debugWindowController?.logEvent("   Injection: \(injectionInfo.method) (\(injectionInfo.description)) ✓ confirmed")
+            
+            // Reset intra-app focus tracking (new app = new baseline)
+            self.lastFocusedElementSignature = ""
         }
 
         debugWindowController?.logEvent("App switch observer registered")
@@ -1261,7 +1269,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             // Trigger toolbar check with slight delay to allow focus to settle
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self?.checkAndShowToolbarForFocusedElement()
+                self?.handleFocusCheck()
             }
         }
         
@@ -1623,12 +1631,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupTempOffToolbar() {
         // Always setup notification observer for settings changes
         setupTempOffToolbarSettingsObserver()
+        
+        // ALWAYS setup focus monitoring for injection detection (CMD+T, Tab, etc.)
+        // This runs regardless of toolbar setting
+        setupFocusChangeMonitoring()
 
         let preferences = SharedSettings.shared.loadPreferences()
 
-        // Only setup toolbar if enabled
+        // Only setup toolbar-specific features if enabled
         guard preferences.tempOffToolbarEnabled else {
-            debugWindowController?.logEvent("Temp off toolbar disabled")
+            debugWindowController?.logEvent("Temp off toolbar disabled (focus monitoring still active)")
             return
         }
 
@@ -1676,27 +1688,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Setup hotkey from preferences
         setupTempOffToolbarHotkey()
 
-        // Setup focus change monitoring to auto-show toolbar
-        setupFocusChangeMonitoring()
+        // Note: Focus monitoring is already setup in setupTempOffToolbar()
+        // and runs for injection detection even when toolbar is disabled
 
         debugWindowController?.logEvent("Temp off toolbar enabled")
         
         // Check if user is already focused on a text input and show toolbar immediately
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.lastFocusedElement = nil  // Reset to force re-check
-            self?.checkAndShowToolbarForFocusedElement()
+            self?.handleFocusCheck()
         }
     }
 
     /// Disable temp off toolbar and cleanup
+    /// Note: Focus check timer is NOT stopped - it continues for injection detection
     private func disableTempOffToolbar() {
         // Clear hotkey from EventTapManager
         eventTapManager?.toolbarHotkey = nil
         eventTapManager?.onToolbarHotkey = nil
 
-        // Stop focus check timer
-        focusCheckTimer?.invalidate()
-        focusCheckTimer = nil
+        // Note: focusCheckTimer is NOT stopped here
+        // It continues running for injection detection (CMD+T, etc.)
 
         // Hide toolbar if visible
         TempOffToolbarController.shared.hide()
@@ -1707,7 +1719,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Clear last focused element so re-enable will re-check
         lastFocusedElement = nil
 
-        debugWindowController?.logEvent("Temp off toolbar disabled")
+        debugWindowController?.logEvent("Temp off toolbar disabled (focus monitoring still active)")
     }
 
     /// Setup monitoring for focus changes to auto-show toolbar when focusing text fields
@@ -1719,7 +1731,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.checkAndShowToolbarForFocusedElement()
+            self?.handleFocusCheck()
         }
 
         // Also monitor mouse clicks to detect focus changes within same app
@@ -1734,33 +1746,114 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupFocusCheckTimer() {
         focusCheckTimer?.invalidate()
-        focusCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            self?.checkAndShowToolbarForFocusedElement()
+        // Use 0.3s interval for responsive focus change detection
+        focusCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
+            self?.handleFocusCheck()
         }
     }
-
-    /// Check if currently focused element is a text field and show toolbar
-    private func checkAndShowToolbarForFocusedElement() {
-        // Only proceed if toolbar is enabled
-        guard SharedSettings.shared.tempOffToolbarEnabled else { return }
-
+    
+    /// Main focus check handler - gets focused element once and passes to both processors
+    private func handleFocusCheck() {
         let systemWide = AXUIElementCreateSystemWide()
-
-        // Get focused element
+        
+        // Get focused element ONCE (avoid duplicate AX API calls)
         var focusedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
               let focusedElement = focusedRef else {
-            // No focused element - hide toolbar
-            if TempOffToolbarController.shared.isVisible {
+            // No focused element - hide toolbar if visible
+            if SharedSettings.shared.tempOffToolbarEnabled && TempOffToolbarController.shared.isVisible {
                 TempOffToolbarController.shared.hide()
             }
             return
         }
-
+        
         let axElement = focusedElement as! AXUIElement
+        
+        // 1. ALWAYS check for injection method changes (CMD+T, Tab, etc.)
+        checkIntraAppFocusChange(for: axElement)
+        
+        // 2. Check toolbar display (only if enabled)
+        if SharedSettings.shared.tempOffToolbarEnabled {
+            checkAndShowToolbarForFocusedElement(axElement)
+        }
+    }
 
+    // MARK: - Intra-App Focus Monitoring
+    
+    /// Check if focused element has changed within the same app (e.g., CMD+T in browser)
+    /// If so, re-detect injection method and reset engine
+    /// - Parameter element: The currently focused AXUIElement (passed from handleFocusCheck)
+    private func checkIntraAppFocusChange(for element: AXUIElement) {
+        // Get current element's "signature" (role + description/identifier)
+        let currentSignature = getElementSignature(element)
+        
+        // Check if signature changed (different element type)
+        if currentSignature != lastFocusedElementSignature && !lastFocusedElementSignature.isEmpty {
+            // Focus changed within same app (different element type)
+            // Re-detect injection method
+            let detector = AppBehaviorDetector.shared
+            let injectionInfo = detector.detectInjectionMethod()
+            let previousMethod = detector.getConfirmedInjectionMethod()
+            
+            // Only update if method actually changed
+            if previousMethod.method != injectionInfo.method {
+                detector.setConfirmedInjectionMethod(injectionInfo)
+                
+                // Reset engine for new context
+                keyboardHandler?.resetWithCursorMoved()
+                
+                debugWindowController?.logEvent("Focus changed (keyboard): \(lastFocusedElementSignature) → \(currentSignature)")
+                debugWindowController?.logEvent("   Injection: \(previousMethod.method.rawValue) → \(injectionInfo.method.rawValue) ✓ confirmed")
+            }
+        }
+        
+        // Update last signature
+        lastFocusedElementSignature = currentSignature
+    }
+    
+    /// Get a signature string for an AX element (used to detect focus changes)
+    /// Signature includes role, subrole, and description/identifier
+    private func getElementSignature(_ element: AXUIElement) -> String {
+        var parts: [String] = []
+        
+        // Get role
+        var roleRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRef) == .success,
+           let role = roleRef as? String {
+            parts.append(role)
+        }
+        
+        // Get subrole
+        var subroleRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleRef) == .success,
+           let subrole = subroleRef as? String {
+            parts.append(subrole)
+        }
+        
+        // Get description (used for address bar detection in browsers)
+        var descRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute as CFString, &descRef) == .success,
+           let desc = descRef as? String, !desc.isEmpty {
+            // Truncate to first 50 chars to avoid overly long signatures
+            let truncated = String(desc.prefix(50))
+            parts.append("desc:\(truncated)")
+        }
+        
+        // Get DOM identifier if available (for web content)
+        var domIdRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXDOMIdentifier" as CFString, &domIdRef) == .success,
+           let domId = domIdRef as? String, !domId.isEmpty {
+            parts.append("dom:\(domId)")
+        }
+        
+        return parts.joined(separator: "|")
+    }
+
+    /// Check if focused element is a text field and show toolbar
+    /// - Parameter element: The currently focused AXUIElement (passed from handleFocusCheck)
+    private func checkAndShowToolbarForFocusedElement(_ element: AXUIElement) {
         // Check if it's the same element as before
-        if let lastElement = lastFocusedElement, CFEqual(lastElement, axElement) {
+        if let lastElement = lastFocusedElement, CFEqual(lastElement, element) {
             // Same element
             if TempOffToolbarController.shared.isVisible {
                 // Toolbar visible - just update position
@@ -1772,10 +1865,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // New focused element
-        lastFocusedElement = axElement
+        lastFocusedElement = element
 
         // Check if it's a text input element
-        if isTextInputElement(axElement) {
+        if isTextInputElement(element) {
             // Show toolbar near cursor
             TempOffToolbarController.shared.show()
         } else {
