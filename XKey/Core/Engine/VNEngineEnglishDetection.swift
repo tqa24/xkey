@@ -222,6 +222,21 @@ extension String {
         // X + consonant
         // NOTE: "xy" is EXCLUDED because 'y' is a vowel in Vietnamese
         "xb", "xc", "xd", "xf", "xg", "xh", "xj", "xk", "xl", "xm", "xn", "xp", "xq", "xs", "xt", "xv", "xx", "xz",
+        
+        // ========================================
+        // VOWEL PATTERNS - Impossible in Vietnamese
+        // These catch common English words like year, you, your, our, ear
+        // Vietnamese 'y' only combines with 'ê' (yêu, yên, yếm, yểng)
+        // ========================================
+        // Y + vowel (except yê which is valid Vietnamese)
+        "yo",  // you, your, yolk, yoga → Vietnamese has NO "yo-" words
+        "ya",  // yard, yank, yarn, yang → Vietnamese has NO "ya-" words
+        "yi",  // yield, yikes, yin → Vietnamese has NO "yi-" words
+        "yu",  // yummy, yurt, yuan → Vietnamese has NO "yu-" words
+        // O + u (English "ou" sound) → Vietnamese has NO "ou-" words
+        "ou",  // our, out, ounce, outer
+        // E + a (English "ea" sound) → Vietnamese has NO "ea-" words
+        "ea",  // ear, each, eat, easy, earn, earth
     ]
     
     /// Set of 3-letter initial clusters that are IMPOSSIBLE in Vietnamese
@@ -257,6 +272,9 @@ extension String {
         "fla", "fle", "fli", "flo", "flu", "fly",
         // WR extended
         "wra", "wre", "wri", "wro", "wru",
+        // YEA pattern - English words like year, yeah, yeast
+        // Vietnamese 'y' only combines with 'ê' (yê-), never with 'ea'
+        "yea",
     ]
     
     /// Set of 4-letter initial clusters that are IMPOSSIBLE in Vietnamese
@@ -283,6 +301,9 @@ extension String {
         "shra", "shre", "shri", "shro", "shru",
         // Other
         "psyc", "pneu", "ghri",
+        // THEI pattern - English words like their, they
+        // Vietnamese "th" + "e" is valid (thế, thể) but "thei" is NOT
+        "thei",
     ]
     
     // ============================================

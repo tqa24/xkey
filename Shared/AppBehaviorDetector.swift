@@ -917,9 +917,12 @@ class AppBehaviorDetector {
             return true
         }
         
-        // Check DOM Classes for OmniboxViewViews
-        if let domClasses = getFocusedElementDOMClasses(), domClasses.contains("OmniboxViewViews") {
-            return true
+        // Check DOM Classes for OmniboxViewViews (Chrome, Edge, etc.)
+        // or BraveOmniboxViewViews (Brave Browser)
+        if let domClasses = getFocusedElementDOMClasses() {
+            if domClasses.contains("OmniboxViewViews") || domClasses.contains("BraveOmniboxViewViews") {
+                return true
+            }
         }
         
         return false
@@ -1637,16 +1640,6 @@ class AppBehaviorDetector {
                     description: "Firefox Content Area"
                 )
             }
-        }
-
-        // Browser address bars (non-Firefox)
-        if Self.browserApps.contains(bundleId) && role == "AXTextField" {
-            return InjectionMethodInfo(
-                method: .selection,
-                delays: InjectionMethod.selection.defaultDelays,
-                textSendingMethod: .chunked,
-                description: "Browser Address Bar"
-            )
         }
 
         // JetBrains IDEs
